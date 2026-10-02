@@ -1,0 +1,6 @@
+OPTION host.hostname=churchcrm
+OPTION virtualnet=":churchcrm default"
+OPTION nat
+OPTION start
+
+PKG install -y nginx mariadb114-server php83 php83-extensions

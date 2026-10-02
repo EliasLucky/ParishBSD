@@ -1,0 +1,7 @@
+OPTION host.hostname=vault
+OPTION virtualnet=":vault-net default"
+OPTION start
+
+CMD mkdir -p /data
+
+PKG install -y ca_root_nss
