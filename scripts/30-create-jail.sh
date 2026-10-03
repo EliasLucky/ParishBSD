@@ -28,7 +28,7 @@ personality="${2:?usage: 30-create-jail.sh <name> <personality>}"
 # --- Paths ---
 repo="${PARISHBSD_REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
 personality_dir="$repo/personalities/$personality"
-jailroot="/usr/local/jails/${PERSONALITY_TIER}:-app}/$name"
+jailroot="/usr/local/jails/${PERSONALITY_TIER:-app}/$name"
 arch="$(uname -m)"
 version="$(freebsd-version -u | awk -F'-p' '{print $1}')"
 cached_txz="$PARISHBSD_CACHE/base-$version-$arch.txz"
@@ -85,9 +85,9 @@ create_jailroot() {
 	fi
 
 	# Prefer ZFS clone from template
-	if [ -n "${PERSONALITY_TEMPLATE:-}" ] && zfs list "$PERSOONALITY_TEMPLATE" >/dev/null 2>&1; then
+	if [ -n "${PERSONALITY_TEMPLATE:-}" ] && zfs list "$PERSONALITY_TEMPLATE" >/dev/null 2>&1; then
 		log "Cloning from ZFS template $PERSONALITY_TEMPLATE"
-		container_ds="zroot/jails/containers/$name"
+		container_ds="/zroot/jails/containers/$name"
 		if zfs list "$container_ds" >/dev/null 2>&1; then
 			err "ZFS dataset $container_ds already exists - destroy it first"
 		fi
