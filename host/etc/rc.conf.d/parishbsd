@@ -1,0 +1,19 @@
+# ParishBSD host rc.conf settings
+# This file is installed to /etc/rc.conf.d/parishbsd by bootstrap.sh
+
+sendmail_enable="NONE"
+sendmail_submit_enable="NO"
+sendmail_outbound_enable="NO"
+sendmail_msp_queue_enable="NO"
+sshd_enable="NO"
+ntpd_enable="NO"
+
+gateway_enable="YES"
+cloned_interfaces="bridge0"
+ifconfig_bridge0="inet 10.0.0.1/24 up"
+
+pf_enable="YES"
+pf_rules="/etc/pf.conf"
+pflog_enable="YES"
+
+jail_enable="YES"
