@@ -4,8 +4,8 @@
 
 ParishBSD is an operating system based on FreeBSD that was heavily inspired by QubesOS.
 
-ParishBSD allows creating isolated compartments (or containers; functionally it's freebsd-jails). If one of the compartments got compromised then the rest of the system is still safe.
-An user can create vault that has no network connection to securely store information.Uses Xpra (to connect socket from jail to host) to display apps.
+ParishBSD allows creating isolated compartments (or containers; functionally it's freebsd-jails). If one of the compartments got compromised then the rest of the system is still safe. Interestingly, if the host system has been compromised then the containers are still safe (unless root access was acquired).
+An user can create vault that has no network connection to securely store information.
 
 **Primarily, ParishBSD was made for Churches and Parishes to provide maximum security and easy use.** This goal was proposed due to the **tendency** and **current movements** of the large IT companies trying to **integrate AI agents' full control** within the operating system.
 
@@ -34,9 +34,13 @@ For more information on how exactly the security is managed please read the sect
 
 ParishBSD provides template containers which have their own predefined configurations for easier and fast setup of containers.
 
-Most of the containers are called "thin" jails (freebsd-jails) and they're allocated on different ZFS dataset within the filesystem providing isolation from the host system.
+1. **App containers** are considered "thick" jails (freebsd-jails ZFS-clone of template with base system) and **they're allocated on different ZFS dataset** within the filesystem providing **isolation from the host system**. Whether or not the container has access to outside network depends on the configuration.
 
-Vault containers are considered "thick" jails because they're defined to securely contain sensetive data without any possibilities of leaks. They contain full FreeBSD system in them for full isolation and may take a little longer to setup. Vault containers have NO outside network access. Therefore, the only way to compromise vault containers is only through the host system. But this will still be safer to secure sensetive data than any OS such as Windows, MacOS and GNU/Linux (functionally it's not possible to provide same isolation within Linux kernel).
+2. **Vault containers** are considered "thick" jails (freebsd-jails ZFS-clone of template with base system) and **they're allocated on different ZFS dataset** with `encryption=on` within the filesystem providing **isolation with encryption from the host system**.
+    - Vault containers have NO outside network access.
+    - All the data within the vault containers is encrypted. Even if the host system was compromised (attacker escaped from app container to the host) then it's still impossible to view the contents of the vault.
+    - Secrets for encryption live in additional data dataset.
+    - **This is WAY safer approach to secure sensetive data** than any OS such as Windows, MacOS and GNU/Linux (functionally it's not possible to provide same isolation within Linux kernel).
 
 Management of said containers can be done through additional isolated container which has no outside network access.
 
