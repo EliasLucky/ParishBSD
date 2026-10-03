@@ -50,7 +50,7 @@ ensure_cache() {
 
 # Extract into the jail root
 create_jailroot() {
-	if [ -d "$jailroot"] && [ -e "$jailroot/bin/sh" ]; then
+	if [ -d "$jailroot" ] && [ -e "$jailroot/bin/sh" ]; then
 		log "Jail root $jailroot already exists - leaving it alone"
 		return 0
 	fi
@@ -58,7 +58,7 @@ create_jailroot() {
 	log "Creating jail root at $jailroot"
 	mkdir -p "$jailroot"
 
-	log "Etracting base.txz"
+	log "Extracting base.txz"
 	tar -xpf "$cached_txz" -C "$jailroot" || err "extraction failed"
 
 	# A jail does not need its own kernel
@@ -84,6 +84,24 @@ install_config() {
 	install -d /etc/jail.conf.d
 	install -m 0644 "$cfg" "/etc/jail.conf.d/$name.conf"
 	log "Installed /etc/jail.conf.d/$name.conf"
+
+	# Install the fstab entry if the repo has one
+	fstab="$repo/host/etc/fstab.$name"
+	if [ -f "$fstab" ]; then
+		install -m 0644 "$stab" "/etc/fstab.$name"
+		log "Installed /etc/fstab.$name"
+	fi
+
+	# Create mount point directories
+	case "$name" in
+		browser)
+			mkdir -p /var/run/xpra/browser
+			mkdir -p "/usr/local/jails/app/browser/xpra"
+			;;
+		vault-*)
+			mkdir -p "/usr/local/jails/vault/$name/var/db"
+			;;
+	esac
 }
 
 ensure_cache
