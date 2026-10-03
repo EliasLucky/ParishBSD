@@ -1,0 +1,15 @@
+${name} {
+	host.hostname = "${name}.parishbsd.local";
+	path = "/usr/local/jails/${tier}/${name}";
+
+	vnet;
+	vnet.interface = "${epair}b";
+	exec.prestart = "/sbin/ifconfig ${epair} create up; /sbin/ifconfig bridge0 addm ${epair}a up";
+	exec.start = "/sbin/ifconfig ${epair}b ${ip}/24 up; /sbin/route add default 10.0.0.1; /bin/sh /etc/rc";
+	exec.poststop = "/sbin/ifconfig bridge0 deletem ${epair}a; /sbin/ifconfig ${epair}a destroy";
+
+	mount.fstab = "/etc/fstab.${name}";
+
+	exec.consolelog = "/var/log/jail_${name}_console.log"
+	persist;
+}
