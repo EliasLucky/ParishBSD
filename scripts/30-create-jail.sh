@@ -72,11 +72,11 @@ create_jailroot() {
 	rm -f "$jailroot/boot/kernel/kernel" 2>/dev/null || true
 
 	# Ensure resolv.conf exists
-	if [ ! -s "$jailrroot/etc/resolv.conf" ]; then
+	if [ ! -s "$jailroot/etc/resolv.conf" ]; then
 		cat > "$jailroot/etc/resolv.conf" <<'EOF'
 nameserver 1.1.1.1
 nameserver 9.9.9.9
-EOF		
+EOF
 	fi
 }
 
