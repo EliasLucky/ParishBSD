@@ -88,6 +88,13 @@ create_jailroot() {
 		log "Cloning from ZFS template $PERSONALITY_TEMPLATE"
 		pool="${PERSONALITY_TEMPLATE%%/*}"
 		container_ds="${pool}/jails/containers/$name"
+		containers_parent="${container_ds%/*}"
+
+		# SAFEGUARD - Ensure the containers parent exists
+		zfs list "$containers_parent" >/dev/null 2>&1 || \
+			zfs create -p "$containers_parent" || \
+			err "cannot create $containers_parent"
+
 		if zfs list "$container_ds" >/dev/null 2>&1; then
 			err "ZFS dataset $container_ds already exists - destroy it first"
 		fi
