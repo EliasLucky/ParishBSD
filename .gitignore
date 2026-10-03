@@ -1,0 +1,9 @@
+*.key
+*.pem
+.env
+secrets/
+
+/usr/local/jails/
+*.txz
+*.qcow2
+.DS_Store
