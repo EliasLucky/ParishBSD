@@ -1,6 +1,0 @@
-OPTION host.hostname=gui-test
-OPTION virtualnet=:gui-test-net
-OPTION start
-
-PKG install -y xterm xpra
-CMD mkdir -p /var/run/xpra
