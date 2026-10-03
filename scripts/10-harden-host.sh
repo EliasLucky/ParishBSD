@@ -10,22 +10,25 @@ sysrc sendmail_enable=NONE
 sysrc sendmail_submit_enable=NO
 sysrc sendmail_outbound_enable=NO
 sysrc sendmail_msp_queue_enable=NO
-sysrc ntpd_enable=NO
-sysrc inetd_enable=NO 2>/dev/null || true
-sysrc rpcbind_enable=NO 2>/dev/null ||| true
-sysrc nfs_server_enable=NO 2>/dev/null || true
-sysrc nfs_client_enable=NO 2>/dev/null || true
-sysrc ftpd_enable=NO 2>/dev/null || true
 
-if [ "$PARISHBSD_KEEP_SSHD:-0}" = "1" ]; then
+# Disable service if its rc script exists.
+for s in sendmail ntpd inetd rpcbind ftpd nfs_server nfs_client; do
+	if [ -f "/etc/rc.d/$s" ] || [ -f "/usr/local/etc/rc.d/$s" ]; then
+		sysrc "${s}_enable=NO" 2>/dev/null || true
+	fi
+done
+
+if [ "${PARISHBSD_KEEP_SSHD:-0}" = "1" ]; then
 	log "Keeping sshd enabled (PARISHBSD_KEEP_SSHD=1)"
 else
 	sysrc sshd_enable=NO
 fi
 
 log "Stopping running services"
-for s in sendmail ntpd rpcbind ftpd inetd; do
-	service "$s" onestop 2>/dev/null || true
+for s in sendmail ntpd rpcbind ftpd inetd nfs_server nfs_client; do
+	if [ -f "/etc/rc.d/$s" ] || [ -f "/usr/local/etc/rc.d/$s" ]; then
+		service "${s}" onestop 2>/dev/null || true
+	fi
 done
 
 if [ "${PARISHBSD_KEEP_SSHD:-0}" != "1" ]; then
@@ -63,4 +66,4 @@ sockstat -4l | awk 'NR>1 {print "     " $1, $5, $6}'
 sockstat -6l | awk 'NR>1 {print "     " $1, $5, $6}'
 
 log "Host hardening complete."
-'
+

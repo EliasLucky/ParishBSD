@@ -10,7 +10,7 @@ EXT_IF="${PARISHBSD_EXT_IF:-$(route -n get default 2>/dev/null | awk '/interface
 log "Using uplink interface: $EXT_IF"
 
 # --- Enable IP forwarding ---
-sysctl net.inet.ip.forwarning=1 >/dev/null
+sysctl net.inet.ip.forwarding=1 >/dev/null
 #if ! grep -q 'net.inet.ip.forwarding=1' /etc/sysctl.conf 2>/dev/null; then
 #	echo 'net.inet.ip.forwarding=1' >> /etc/sysctl.conf
 #fi
@@ -37,11 +37,11 @@ set skip on \$int_if
 
 scrub in on \$ext_if all fragment reassemble
 
+nat on \$ext_if from 10.0.0.0/24 to any -> (\$ext_if)
+
 block all
 block in quick on \$ext_if
 pass out quick on \$ext_if
-
-nat on \$ext_if from 10.0.0.0/24 to any -> (\$ext_if)
 EOF
 
 pfctl -nf /etc/pf.conf
