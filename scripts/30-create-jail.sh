@@ -106,6 +106,8 @@ nameserver 1.1.1.1
 nameserver 9.9.9.9
 EOF
 		fi
+		mkdir -p "$jailroot/dev"
+		mount -t devfs devfs "$jailroot/dev"
 	fi
 }
 
