@@ -37,11 +37,13 @@ install -m 0644 host/etc/rc.conf.d/parishbsd /etc/rc.conf.d/parishbsd
 log "Setting up network"
 sh scripts/20-network.sh
 
+log "Building ZFS templates"
+sh scripts/25-setup-templates.sh
+
 # --- Create jails ---
 log "Creating jails"
-for jail in browser vault-churchcrm; do
-	sh scripts/30-create-jail.sh "$jail"
-done
+sh scripts/30-create-jail.sh browser app-xpra
+sh scripts/30-create-jail.sh vault-churchcrm vault-postgres
 
 # --- Enabling services ---
 log "Enabling services"
