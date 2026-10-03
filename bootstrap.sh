@@ -17,33 +17,36 @@ if [ -z "${PARISHBSD_EXT_IF:-}" ]; then
 	PARISHBSD_EXT_IF="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
 	[ -n "$PARISHBSD_EXT_IF" ] || { echo "cannot detect uplink NIC; set PARISHBSD_EXT_IF" >&2; exit 1; }
 fi
+export PARISHBSD_EXT_IF
 log "Uplink interfaces: $PARISHBSD_EXT_IF"
 
-# Install host config files
-log "Installing host config files"
-install -d /etc/jail.conf.d /etc/rc.conf.d
-install -m 0644 host/etc/pf.conf /etc/pf.conf
-install -m 0644 host/etc/rc.conf.d/parishbsd /etc/rc.conf.d/parishbsd
-[ -f host/sysctl.conf ] && install -m 0644 host/sysctl.conf /etc/sysctl.conf
+# --- Prerequisities ---
+log "Ensuring prerequisities"
+sh scripts/05-ensure-prereqs.sh
 
-# Subsitute the detected NIC into pf.conf
-sed -i '' "s/^ext_if = .*/ext_if = \"$PARISHBSD_EXT_IF\"/" /etc/pf.conf
-
-# Apply hardening
-log "Applying hardening"
+# -- Harden the host ---
+log "Hardening the host"
 sh scripts/10-harden-host.sh
 
-# Bring up the internal bridge
-log "Bringing up the internal bridge"
+# --- Install host config files ---
+log "Installing host config files"
+install -d /etc/jail.conf /etc/rc.conf.d
+install -m 0644 host/etc/rc.conf.d/parishbsd /etc/rc.conf.d/parishbsd
+
+# --- Network ---
+log "Setting up network"
 sh scripts/20-network.sh
 
-log "Creating the browser jail"
-sh scripts/30-create-jail.sh browser
+# --- Create jails ---
+log "Creating jails"
+for jail in browser vault-churchcrm; do
+	sh scripts/30-create-jail.sh "$jail"
+done
 
-# Load pf
-log "Loading pf"
-pfctl -nf /etc/pf.conf
-pfctl -f /etc/pf.conf
-pfctl -e
+# --- Enabling services ---
+log "Enabling services"
+sysrc jail_enable=YES
+sysrc pf_enable=YES
+sysrc pflog_enable=YES
 
-log "Done. Reboot recommended."
+long "Done. Reboot recommended."
