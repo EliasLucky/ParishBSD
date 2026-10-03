@@ -88,7 +88,7 @@ install_config() {
 	# Install the fstab entry if the repo has one
 	fstab="$repo/host/etc/fstab.$name"
 	if [ -f "$fstab" ]; then
-		install -m 0644 "$stab" "/etc/fstab.$name"
+		install -m 0644 "$fstab" "/etc/fstab.$name"
 		log "Installed /etc/fstab.$name"
 	fi
 
