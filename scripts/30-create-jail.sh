@@ -28,7 +28,6 @@ personality="${2:?usage: 30-create-jail.sh <name> <personality>}"
 # --- Paths ---
 repo="${PARISHBSD_REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
 personality_dir="$repo/personalities/$personality"
-jailroot="/usr/local/jails/${PERSONALITY_TIER:-app}/$name"
 arch="$(uname -m)"
 version="$(freebsd-version -u | awk -F'-p' '{print $1}')"
 cached_txz="$PARISHBSD_CACHE/base-$version-$arch.txz"
@@ -87,13 +86,14 @@ create_jailroot() {
 	# Prefer ZFS clone from template
 	if [ -n "${PERSONALITY_TEMPLATE:-}" ] && zfs list "$PERSONALITY_TEMPLATE" >/dev/null 2>&1; then
 		log "Cloning from ZFS template $PERSONALITY_TEMPLATE"
-		container_ds="/zroot/jails/containers/$name"
+		pool="${PERSONALITY_TEMPLATE%%/*}"
+		container_ds="${pool}/jails/containers/$name"
 		if zfs list "$container_ds" >/dev/null 2>&1; then
 			err "ZFS dataset $container_ds already exists - destroy it first"
 		fi
 		zfs clone "$PERSONALITY_TEMPLATE" "$container_ds" || err "zfs clone failed"
 		zfs set mountpoint="$jailroot" "$container_ds"
-		liog "Cloned to $jailroot (dataset: $container_ds)"
+		log "Cloned to $jailroot (dataset: $container_ds)"
 	else
 		log "No ZFS template found - extracting base.txz"
 		ensure_cache
@@ -180,7 +180,8 @@ create_jailroot
 install_config
 create_mountpoints
 clean_orphan_epairs
+install_packages
 
-log "Done. Jail '$name' (personality: $personality is ready at $jailroot"
+log "Done. Jail '$name' (personality: $personality) is ready at $jailroot"
 log "Start it with: service jail start $name"
 log "Then run packages: jexec $name pkg install -y <package>"
