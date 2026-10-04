@@ -80,7 +80,7 @@ nameserver 1.1.1.1
 nameserver 9.9.9.9
 EOF
 
-	log"  mounting devfs"
+	log "  mounting devfs"
 	mkdir -p "$mnt/dev"
 	mount -t devfs devfs "$mnt/dev"
 
