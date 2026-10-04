@@ -24,6 +24,7 @@ log "Ensuring ZFS layout"
 zfs list zroot/jails >/dev/null 2>&1 || zfs create -p zroot/jails
 zfs list zroot/jails/templates >/dev/null 2>&1 || zfs create -p zroot/jails/templates
 zfs list zroot/jails/containers >/dev/null 2>&1 || zfs create -p zroot/jails/containers
+zfs list zroot/vault-data >/dev/null 2>&1 || zfs create -p zroot/vault-ddata
 
 arch="$(uname -m)"
 version="$(freebsd-version -u | awk -F'-p' '{print $1}')"
@@ -45,8 +46,7 @@ ensure_cache() {
 
 build_template() {
 	tmpl_name="$1" # e.g. app,vault
-	personality="$2" # e.g. app-xpra, vault-postgres
-	pkg_list="$3" # e.g. xpra
+	pkg_list="$2" # e.g. xpra
 
 	ds="zroot/jails/templates/$tmpl_name"
 	mnt="/zroot/jails/templates/$tmpl_name"
@@ -60,14 +60,14 @@ build_template() {
 	log "Building template $ds"
 
 	# If the daaset exists but has no @base then destroy
-	if zfslist "$ds" >/dev/null 2>&1; then
+	if zfs list "$ds" >/dev/null 2>&1; then
 		log "  destroying stale $ds"
 		zfs destroy -rf "$ds"
 	fi
 
 	zfs create -p "$ds"
+	zfs set mountpoint="$mnt" "$ds" 2>/dev/null || true
 	mnt="$(zfs get -H -o value mountpoint "$ds")"
-	[ "$mnt" = "none" ] && { zfs set mountpoint="/zroot/jails/templates/$tmpl_name" "$ds"; mnt="/zroot/jails/templates/$tmpl_name"; }
 
 	log "  extracting base.txz into $mnt"
 	tar -xpf "$cached_txz" -C "$mnt" || err "extraction failed"
@@ -99,7 +99,7 @@ env ASSUME_ALWAYS_YES=YES pkg install -y $pkg_list
 EOF
 
 	log "  unmounting devfs"
-	umount "$mnt/dev"
+	umount "$mnt/dev" || true
 
 	log "  snapshotting $ds@base"
 	zfs snapshot "$ds@base"
