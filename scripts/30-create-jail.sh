@@ -8,6 +8,8 @@
 # Clones the ZFS template if it exists, otherwise extracts base.txz
 # Renders e/tc/jail.conf.d/<name>.conf from jail.conf.tmpl
 # Installs fstab.<name> if the personality provides one
+# Installs provision.sh into the jail and wires up /etc/rc.local so it
+# uruns on every jail start.
 # Creates mount-point directories
 # Optionally installs packages into the jail
 #
@@ -46,6 +48,15 @@ command -v tar >/dev/null 2>&1 || err "tar not found"
 [ -d "$personality_dir" ] || err "personality '$personality' not found at $personality_dir"
 . "$personality_dir/personality.conf" || err "failed to load personality.conf"
 
+# Defaults
+PERSONALITY_TIER="${PERSONALITY_TIER:-app}"
+PERSONALITY_TEMPLATE="${PERSONALITY_TEMPLATE:-}"
+PERSONALITY_PACKAGES="${PERSONALITY_PACKAGES:-}"
+PERSONALITY_NEEDS_XPRA_DIR="${PERSONALITY_NEEDS_XPRA_DIR:-no}"
+PERSONALITY_DATA_MOUNT="${PERSONALITY_DATA_MOUNT:-/var/db/data}"
+PERSONALITY_DATA_SOURCE="${PERSONALITY_DATA_SOURCE:-/zroot/vault-data}"
+PERSONALITY_PROVISION="${PERSONALITY_PROVISION:-}"
+
 tier="$PERSONALITY_TIER"
 jailroot="/usr/local/jails/$tier/$name"
 
@@ -56,7 +67,6 @@ ensure_cache() {
 		log "Using cached $cached_txz"
 		return 0
 	fi
-
 
 	log "Downloading base.txz for $version/$arch"
 	log "  from $url"
@@ -72,7 +82,6 @@ ensure_cache() {
 	fi
 
 	mv "$tmp" "$cached_txz"
-
 	log "Cached ($(du -h "$cached_txz" | awk '{print $1}'))"
 }
 
@@ -84,7 +93,7 @@ create_jailroot() {
 	fi
 
 	# Prefer ZFS clone from template
-	if [ -n "${PERSONALITY_TEMPLATE:-}" ] && zfs list "$PERSONALITY_TEMPLATE" >/dev/null 2>&1; then
+	if [ -n "$PERSONALITY_TEMPLATE" ] && zfs list "$PERSONALITY_TEMPLATE" >/dev/null 2>&1; then
 		log "Cloning from ZFS template $PERSONALITY_TEMPLATE"
 		pool="${PERSONALITY_TEMPLATE%%/*}"
 		container_ds="${pool}/jails/containers/$name"
@@ -131,28 +140,61 @@ install_config() {
 	    -e "s/\${tier}/$tier/g" \
 	    -e "s/\${epair}/$epair/g" \
 	    -e "s/\${ip}/$ip/g" \
+		-e "s|\${PERSONALITY_DATA_MOUNT}|$PERSONALITY_DATA_MOUNT|g" \
+		-e "s|\${PERSONALITY_DATA_SOURCE}|$PERSONALITY_DATA_SOURCE|g" \
 	    "$tmpl" > "/etc/jail.conf.d/$name.conf"
 	log "Installed /etc/jail.conf.d/$name.conf (epair=$epair, ip=$ip)"
 
 	# Render fstab if provided
 	fstab_tmpl="$personality_dir/fstab.tmpl"
 	if [ -f "$fstab_tmpl" ]; then
-		sed -e "s/\${name}/$name/g" "$fstab_tmpl" > "/etc/fstab.$name" 
+		sed -e "s/\${name}/$name/g" \
+			-e "s/\${tier}/%tuer/G" \
+			-e "s|\${PERSONALITY_DATA_MOUNT}|$PERSONALITY_DATA_MOUNT|g" \
+			-e "s|\${PERSONALITY_DATA_SOURCE}|$PERSONALITY_DATA_SOURCE|g" \
+			"$fstab_tmpl" > "/etc/fstab.$name" 
 		log "Installed /etc/fstab.$name"
+	fi
+
+	# Install provision.sh and set it to /etc/rc.local
+	if [ -n "$PERSONALITY_PROVISION" ]; then
+		prov="$personality_dir/$PERSONALITY_PROVISION"
+		if [ -f "$prov" ]; then
+			install -d "$jailroot/usr/local/etc/parishbsd"
+			install -m 0755 "$prov" "$jailroot/usr/local/etc/parishbsd/provision.sh"
+			log "Installed provision.sh into jail"
+
+			rclocal="$jailroot/etc/rc.local"
+			if [ ! -f "$rclocal" ] || \
+				! grep -q 'parishbsd/provision.sh' "$rclocal" 2>/dev/null; then
+				cat > "$rclocal" <<'EOF'
+#!/bin/sh
+# ParishBSD provisioing hook - runs once per jail start
+if [ -x /usr/local/etc/parishbsd/provision.sh ]; then
+	/usr/local/etc/parishbsd/provision.sh
+fi
+exit 0
+EOF
+				chmod 0755 "$rclocal"
+				log "Installed /etc/rc.local provisioning hook"
+			fi
+		else
+			log "WARN: personality delcares provision=$PERSONALITY_PROVISION but $prov is missing"
+		fi
 	fi
 }
 
 # Create mount-point directories
 create_mountpoints() {
-	if [ "${PERSONAITY_NEEDS_XPRA_DIR:-}" = "yes" ]; then
+	if [ "$PERSONAITY_NEEDS_XPRA_DIR" = "yes" ]; then
 		mkdir -p "/var/run/xpra/$name"
 		mkdir -p "$jailroot/xpra"
 		log "Created Xpra mount points for $name"
 	fi
 	case "$tier" in
 		vault)
-			mkdir -p "$jailroot/var/db"
-			log "Created vault data directory"
+			mkdir -p "$jailroot$PERSONALITY_DATA_MOUNT"
+			log "Created vault data moint point: $jailroot$PERSONALITY_DATA_MOUNT"
 			;;
 	esac
 }
@@ -169,7 +211,7 @@ clean_orphan_epairs() {
 
 # Instal packages (only if jail is running)
 install_packages() {
-	[ -n "${PERSONALITY_PACKAGES:-}" ] || return 0
+	[ -n "$PERSONALITY_PACKAGES" ] || return 0
 
 	if ! jls name 2>/dev/null | grep -qx "$name"; then
 		log "Jail $name not running - skipping package install"
@@ -179,10 +221,9 @@ install_packages() {
 
 	log "Installing packages in $name: $PERSONALITY_PACKAGES"
 	jexec "$name" env ASSUME_ALWAYS_YES=YES pkg bootstrap 2>/dev/null || true
-	jexec "$name" env ASSUME_ALWAYS_YES=YES pkg install -y $PERSONALITY_PACKAGES || log "Package install failed - run manually later. $PERSONALITY_PACKAGES"
+	jexec "$name" env ASSUME_ALWAYS_YES=YES pkg install -y $PERSONALITY_PACKAGES || log "Package install failed - run manually later: $PERSONALITY_PACKAGES"
 }
 
-ensure_cache
 create_jailroot
 install_config
 create_mountpoints
