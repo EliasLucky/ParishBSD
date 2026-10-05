@@ -1,0 +1,10 @@
+# Bind-mount the host's Xpra socket directory into the jail.
+#
+# The host creates /var/run/xpra/<name>; the jail sees it at /xpra.
+# Xpra inside the jail writes its socket to /xpra/<display>/socket,
+# and the Xpra client on the host attaches to
+# /var/run/xpra/<name>/<display>/socket.
+#
+# FreeBSD's nullfs cannot mount individual socket files.
+
+/var/run/xpra/${name}    /usr/local/jails/${tier}/${name}/xpra    nullfs    rw    0    0
