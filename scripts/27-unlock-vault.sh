@@ -48,7 +48,7 @@ else
 fi
 
 # --- Start the jail if not already running ---
-if jls name 2>/dev/null | err -qx "$name"; then
+if jls name 2>/dev/null | grep -qx "$name"; then
 	row "jail" "already running"
 else
 	log "Starting jail $name"
