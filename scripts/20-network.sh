@@ -88,7 +88,16 @@ block all
 block in quick on \$ext_if
 pass out quick on \$ext_if
 EOF
+# Ensure pf is loaded before we try to validate rules
+if ! kldstat -q -m pf 2>/dev/null; then
+	log "Loading pf kernel module"
+	kldload pf 2>/dev/null || err "cannot load pf module"
+fi
 
+# Ensure /dev/pf exists
+if [ ! -c /dev/pf ]; then
+	err "/dev/pf not found - is the pf module loaded?"
+fi
 # --- Validate and load ---
 log "Validating pf.conf"
 pfctl -nf /etc/pf.conf || err "pf.conf has syntax errors"
