@@ -97,6 +97,27 @@ if [ -f "$REPO/parishctl/parishctl" ]; then
 	note "installed /usr/local/bin/parishctl"
 fi
 
+# --- Vault locking infrastructure ---
+install -d /usr/local/etc/parishbsd
+
+# Config
+if [ ! -f /usr/local/etc/parishbsd/idle-lock.conf ]; then
+	install -m 0644 "$REPO/host/etc/parishbsd/idle-lock.conf" \
+		/usr/local/etc/parishbsd/idle-lock.conf
+	note "installed idle-lock.conf (idle locking enabled by default)"
+fi
+
+# Shutdown-lock rc.d script.
+install -m 0755 "$REPO/host/etc/rc.d/parishbsd_vaults" /usr/local/etc/rc.d/
+sysrc parishbsd_vaults_enable=YES
+note "installed rc.d: parishbsd_vaults"
+
+# Idle-check cron job.
+if ! grep -q 'vault-idle-check.sh' /etc/crontab; then
+	echo '* * * * * root /usr/local/parishbsd/scripts/vault-idle-check.sh' >> /etc/crontab
+	note "installed vault-idle cron job"
+fi
+
 # Install the repo itself to /usr/local/parish for parishctl
 if [ ! -d /usr/local/parishbsd ]; then
 	cp -a "$REPO" /usr/local/parishbsd
