@@ -7,20 +7,20 @@
 # destroyed. Each flag adds one more layer:
 #
 #	--containers	(default) Destroy jail instances.
-#	--templates		Also destroy ZFS template datasets and their @base
-#					snapshots. Rebuilding requires re-downloading base.txz
-#					and re-installing packages. Slow but safe.
+#	--templates	Also destroy ZFS template datasets and their @base
+#			snapshots. Rebuilding requires re-downloading base.txz
+#			and re-installing packages. Slow but safe.
 #	--vault-data	Also destroy encrypted vault datasets (zroot/vault-data).
-#					WARNING: DESTROYS ENCRYPTED VAULT CONTENTS. Requires
-#					   interactive confirmation. If the passphrase is lost,
-#					   the data is unrecoverable either way.
-#	--host			Also remove host-level config: jail configs, fstabs,
-#					pf.conf, rc.conf.d/parishbsd, xpra socket dirs,
-#					loader.conf and sysctl.conf entries, bridge0, epairs.
-#					Does NOT uninstall packages.
-#	--cache			Also remove the base.txz cache.
-#	--all			Everything: containers + templates + vault-data + host
-#					+ cache. Still prompts for vault-data confirmation.
+#			WARNING: DESTROYS ENCRYPTED VAULT CONTENTS. Requires
+#			   interactive confirmation. If the passphrase is lost,
+#			   the data is unrecoverable either way.
+#	--host		Also remove host-level config: jail configs, fstabs,
+#			pf.conf, rc.conf.d/parishbsd, xpra socket dirs,
+#			loader.conf and sysctl.conf entries, bridge0, epairs.
+#			Does NOT uninstall packages.
+#	--cache		Also remove the base.txz cache.
+#	--all		Everything: containers + templates + vault-data + host
+#			+ cache. Still prompts for vault-data confirmation.
 #
 # Multiple flags can combine: sh 99-clean.sh --templates --host
 #
@@ -30,9 +30,9 @@ set -eu
 PARISHBSD_CACHE="${PARISHBSD_CACHE:-/var/cache/parishbsd}"
 
 # --- Helpers ---
-log()  { printf '	 %s\n' "$*"; }
-row()  { printf '	 %-22s %s\n' "$1" "$2"; }
-warn() { printf '	 WARN: %s\n' "$*" >&2; }
+log()  { printf '    %s\n' "$*"; }
+row()  { printf '    %-22s %s\n' "$1" "$2"; }
+warn() { printf '    WARN: %s\n' "$*" >&2; }
 err()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || err "must be run as root"
@@ -52,8 +52,8 @@ for arg in "$@"; do
 		--containers) DO_CONTAINERS=1 ;;
 		--templates)  DO_TEMPLATES=1 ;;
 		--vault-data) DO_VAULT_DATA=1 ;;
-		--host)		  DO_HOST=1 ;;
-		--cache)	  DO_CACHE=1 ;;
+		--host)	      DO_HOST=1 ;;
+		--cache)      DO_CACHE=1 ;;
 		--all)
 			DO_CONTAINERS=1
 			DO_TEMPLATES=1
@@ -81,8 +81,8 @@ printf '\nParishBSD cleanup plan:\n\n'
 row "containers"  "$([ "$DO_CONTAINERS" -eq 1 ] && echo DESTROY || echo keep)"
 row "templates"   "$([ "$DO_TEMPLATES"	-eq 1 ] && echo DESTROY || echo keep)"
 row "vault data"  "$([ "$DO_VAULT_DATA" -eq 1 ] && echo DESTROY || echo keep)"
-row "host config" "$([ "$DO_HOST"		-eq 1 ] && echo DESTROY || echo keep)"
-row "cache"		  "$([ "$DO_CACHE"		-eq 1 ] && echo DESTROY || echo keep)"
+row "host config" "$([ "$DO_HOST"	-eq 1 ] && echo DESTROY || echo keep)"
+row "cache"	  "$([ "$DO_CACHE"	-eq 1 ] && echo DESTROY || echo keep)"
 printf '\n'
 
 # --- Stop running jails ---
@@ -105,7 +105,7 @@ if [ "$DO_CONTAINERS" -eq 1 ]; then
 		# Never touch zroot/jails/containers itself.
 		destroyed=0
 		for ds in $(zfs list -H -o name -r zroot/jails/containers 2>/dev/null | \
-					grep -v '^zroot/jails/containers$' | sort -r); do
+				grep -v '^zroot/jails/containers$' | sort -r); do
 
 			# Safety: only destroy datasets matching the expected pattern.
 			case "$ds" in
@@ -131,7 +131,7 @@ if [ "$DO_TEMPLATES" -eq 1 ]; then
 	if zfs list zroot/jails/templates >/dev/null 2>&1; then
 		destroyed=0
 		for ds in $(zfs list -H -o name -r zroot/jails/templates 2>/dev/null | \
-					grep -v '^zroot/jails/templates$' | sort -r); do
+				grep -v '^zroot/jails/templates$' | sort -r); do
 			case "$ds" in
 				zroot/jails/templates/*)
 					log "  destroying $ds"
@@ -157,18 +157,18 @@ if [ "$DO_VAULT_DATA" -eq 1 ]; then
 	else
 		# List what would be destroyed.
 		children="$(zfs list -H -o name -r zroot/vault-data 2>/dev/null | \
-					grep -v '^zroot/vault-data$' || true)"
+			grep -v '^zroot/vault-data$' || true)"
 
 		if [ -z "$children" ]; then
 			row "vault-data" "no datasets to destroy"
 		else
 			printf '\n'
-			printf '	The following encrypted vault datasets will be destroyed:\n\n'
-			echo "$children" | sed 's/^/		/'
+			printf '    The following encrypted vault datasets will be destroyed:\n\n'
+			echo "$children" | sed 's/^/        /'
 			printf '\n'
-			printf '	This is IRREVERSIBLE. Vault contents cannot be recovered\n'
-			printf '	even with the passphrase after this operation.\n\n'
-			printf '	Type exactly  destroy-vault-data  to proceed: '
+			printf '    This is IRREVERSIBLE. Vault contents cannot be recovered\n'
+			printf '    even with the passphrase after this operation.\n\n'
+			printf '    Type exactly  destroy-vault-data  to proceed: '
 			read -r answer
 			[ "$answer" = "destroy-vault-data" ] || {
 				log "aborted by user - vault data left untouched"
@@ -321,21 +321,21 @@ fi
 # --- Summary ---
 log "Remaining ParishBSD state"
 
-printf '\n	ZFS:\n'
+printf '\n  ZFS:\n'
 if zfs list -r zroot/jails >/dev/null 2>&1; then
 	zfs list -r zroot/jails 2>/dev/null | sed 's/^/    /'
 else
-	printf '	(no zroot/jails)\n'
+	printf '    (no zroot/jails)\n'
 fi
 if zfs list zroot/vault-data >/dev/null 2>&1; then
-	zfs list -r zroot/vault-data 2>/dev/null | sed 's/^/	/'
+	zfs list -r zroot/vault-data 2>/dev/null | sed 's/^/    /'
 fi
 
-printf '\n	Jails running:\n'
+printf '\n  Jails running:\n'
 if jls name 2>/dev/null | grep -q .; then
-	jls name | sed 's/^/	/'
+	jls name | sed 's/^/    /'
 else
-	printf '	(none)\n'
+	printf '     (none)\n'
 fi
 
 printf '\n'
