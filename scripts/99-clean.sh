@@ -342,10 +342,10 @@ printf '\n'
 log "Cleanup complete."
 
 if [ "$DO_TEMPLATES" -eq 0 ]; then
-	printf '	Templates were kept. To rebuild jails:\n'
-	printf '		sh scripts/30-create-jail.sh <name> <personality>\n\n'
+	printf '    Templates were kept. To rebuild jails:\n'
+	printf '        sh scripts/30-create-jail.sh <name> <personality>\n\n'
 fi
 if [ "$DO_HOST" -eq 0 ]; then
-	printf '	Host config was kept. To remove it:\n'
-	printf '		sh scripts/99-clean.sh --host\n\n'
+	printf '    Host config was kept. To remove it:\n'
+	printf '        sh scripts/99-clean.sh --host\n\n'
 fi
