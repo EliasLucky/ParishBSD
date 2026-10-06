@@ -131,6 +131,25 @@ if [ -d "$THEME_SRC_DIR" ] && [ -n "$(ls -A "$THEME_SRC_DIR" 2>/dev/null)" ]; th
             name="$(basename "$d")"
             rm -rf "$THEME_DEST/$name"
             cp -a "$d" "$THEME_DEST/$name"
+            # XFCE's Appearance settings requires index.theme to list a
+            # theme. The Aerobird archive omits it. Generate a minimal one.
+            target="$THEME_DEST/$name"
+            if [ ! -f "$target/index.theme" ]; then
+                pretty="$(printf '%s' "$name" | tr '-' ' ')"
+                cat > "$target/index.theme" <<EOF
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=$pretty
+Comment=Aerobird theme variant: $pretty
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=$name
+MetacityTheme=$name
+IconTheme=Adwaita
+CursorTheme=Adwaita
+EOF
+            fi
             installed=$((installed + 1))
         fi
     done
