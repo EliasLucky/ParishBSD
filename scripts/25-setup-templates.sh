@@ -115,7 +115,7 @@ env ASSUME_ALWAYS_YES=YES pkg install -y $pkg_list
 EOF
 	then
 		umount "$mnt/dev" || true
-		err "pkg install failed in $Mnt"
+		err "pkg install failed in $mnt"
 	fi
 
 	log "  unmounting devfs"
