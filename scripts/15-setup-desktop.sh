@@ -14,12 +14,12 @@ set -eu
 
 log() { printf '    %s\n' "$*"; }
 row() { printf '    %-24s %s\n' "$1" "$2"; }
-die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 REPO="${PARISHBSD_REPO:-/usr/local/parishbsd}"
 
-[ "$(id -u)" -eq 0 ] || die "must be run as root"
-command -v pkg >/dev/null 2>&1 || die "pkg not found"
+[ "$(id -u)" -eq 0 ] || err "must be run as root"
+command -v pkg >/dev/null 2>&1 || err "pkg not found"
 
 # =====================================================================
 # 1. Install desktop packages
@@ -29,7 +29,7 @@ command -v pkg >/dev/null 2>&1 || die "pkg not found"
 # lightdm-gtk-greeter     — graphical greeter for LightDM
 # lightdm-gtk-greeter-settings — config GUI for the greeter
 # xfce                    — the desktop environment
-# xfce4-goodies           — plugins, panel add-ons, screenshooter
+# xfce4-gooerrs           — plugins, panel add-ons, screenshooter
 # xdg-user-dirs           — manages Documents, Downloads, etc.
 # wqy-fonts               — CJK font coverage (small, avoid font gaps)
 
@@ -40,12 +40,12 @@ env ASSUME_ALWAYS_YES=YES pkg install -y \
     lightdm-gtk-greeter \
     lightdm-gtk-greeter-settings \
     xfce \
-    xfce4-goodies \
+    xfce4-gooerrs \
     xdg-user-dirs \
     wqy-fonts \
-    || die "pkg install failed"
+    || err "pkg install failed"
 
-row "packages" "xorg lightdm xfce xfce4-goodies"
+row "packages" "xorg lightdm xfce xfce4-gooerrs"
 
 # =====================================================================
 # 2. Enable services
