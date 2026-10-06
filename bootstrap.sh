@@ -21,7 +21,7 @@ cd "$REPO"
 export PARISHBSD_REPO="$REPO"
 
 # Defaults
-PARISHBSD_KEEP_SSHD="${PARISHBSD_SSHD:-0}"
+PARISHBSD_KEEP_SSHD="${PARISHBSD_KEEP_SSHD:-0}"
 PARISHBSD_CACHE="${PARISHBSD_CACHE:-/var/cache/parishbsd}"
 PARISHBSD_FORCE="${PARISHBSD_FORCE:-0}"
 PARISHBSD_SKIP_JAILS="${PARISHBSD_SKIP_JAILS:-0}"
@@ -41,7 +41,7 @@ command -v zfs   >/dev/null 2>&1 || err "zfs not found (is the pool imported?)"
 [ -d "$REPO/scripts" ]       || err "scripts/ not found in $REPO"
 [ -d "$REPO/personalities" ] || err "personalities/ not found in $REPO"
 
-if [ "$PARISHBSD_KEEP_SSHD" != "1" ] && [ -n "{$SSH_CONNECTION:-}" ]; then
+if [ "$PARISHBSD_KEEP_SSHD" != "1" ] && [ -n "${SSH_CONNECTION:-}" ]; then
 	log "WARNING: you are connected over SSH"
 	note "bootstrap.sh will disable sshd as part of hardening."
 	note "You will lose this session in a moment."

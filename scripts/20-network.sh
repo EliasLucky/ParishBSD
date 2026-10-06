@@ -91,7 +91,7 @@ EOF
 
 # --- Validate and load ---
 log "Validating pf.conf"
-pfctl -nf /etc/pf.cconf || err "pf.conf has syntax errors"
+pfctl -nf /etc/pf.conf || err "pf.conf has syntax errors"
 row "pf.conf" "valid"
 
 log "Loading pf rules"

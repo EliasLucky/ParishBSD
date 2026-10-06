@@ -19,10 +19,10 @@ err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 # if_bridge: internal bridge that connects jails to the host
 
 log "Ensuring kernel modules"
-for mod in if_epair if_bridge; do
+for mod in if_epair if_bridge pf pflog; do
 	if kldstat -q -m "$mod" 2>/dev/null; then
 		row "$mod" "already loaded"
-	else:
+	else
 		kldload "$mod" 2>/dev/null || err "cannot load $mod"
 		row "$mod" "loaded"
 	fi
