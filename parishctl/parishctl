@@ -378,9 +378,70 @@ cmd_destroy() {
     fi
 }
 
+cmd_schedule_lock() {
+    name="${1:?usage: parishctl schedule-lock <vault> <HH:MM>}"
+    time_in="${2:?usage: parishctl schedule-lock <vault> <HH:MM>}"
+
+    container_path "$name" >/dev/null 2>&1 || die "no container named '$name'"
+    personality="$(container_personality "$(container_path "$name")")"
+    is_vault_personality "$personality" || die "'$name' is not a vault"
+
+    case "$time_in" in
+        [0-2][0-9]:[0-5][0-9]) : ;;
+        *) die "time must be in 24-hour HH:MM format (e.g. 17:30)" ;;
+    esac
+
+    cfg="/usr/local/etc/parishbsd/lock-schedules"
+    install -d "$(dirname "$cfg")"
+
+    # Remove any existing schedule for this vault, then add the new one.
+    if [ -f "$cfg" ]; then
+        grep -v "^${name} " "$cfg" > "$cfg.tmp" || true
+        mv "$cfg.tmp" "$cfg"
+    else
+        printf '# Vault lock schedules. Format: <vault-name> <HH:MM>\n' > "$cfg"
+    fi
+    printf '%s %s\n' "$name" "$time_in" >> "$cfg"
+
+    info "Vault '$name' will be locked daily at $time_in."
+    info ""
+    info "The idle-lock daemon reads this file every minute; no restart needed."
+    info "To remove the schedule:  parishctl unschedule-lock $name"
+}
+
+cmd_unschedule_lock() {
+    name="${1:?usage: parishctl unschedule-lock <vault>}"
+    cfg="/usr/local/etc/parishbsd/lock-schedules"
+
+    if [ ! -f "$cfg" ] || ! grep -q "^${name} " "$cfg"; then
+        warn "no schedule exists for '$name'"
+        return 0
+    fi
+
+    grep -v "^${name} " "$cfg" > "$cfg.tmp"
+    mv "$cfg.tmp" "$cfg"
+    info "Removed schedule for '$name'."
+}
+
+cmd_schedules() {
+    cfg="/usr/local/etc/parishbsd/lock-schedules"
+
+    if [ ! -f "$cfg" ] || ! grep -qvE '^[[:space:]]*(#|$)' "$cfg"; then
+        info "No scheduled locks configured."
+        info ""
+        info "Add one with:  parishctl schedule-lock <vault> <HH:MM>"
+        return 0
+    fi
+
+    printf '%s%-22s %s%s\n' "$BOLD" "VAULT" "LOCK TIME" "$RESET"
+    grep -vE '^[[:space:]]*(#|$)' "$cfg" | while read -r vault at _; do
+        printf '%-22s %s\n' "$vault" "$at"
+    done
+}
+
 cmd_help() {
     cat <<'EOF'
-parishctl — manage ParishBSD containers
+parishctl - manage ParishBSD containers
 
   Containers are isolated environments for running software.
   There are two broad kinds: Applications (general software) and
@@ -410,6 +471,10 @@ DESTROYING
   parishctl destroy <name>          Destroy a container
                                     For vaults, this also destroys the
                                     encrypted data. Requires confirmation.
+SCHEDULES
+  parishctl schedule-lock <vault> <HH:MM>   Lock vault daily at HH:MM
+  parishctl unschedule-lock <vault>         Remove a scheduled lock
+  parishctl schedules                       Show all scheduled locks
 
 OTHER
   parishctl help                    Show this message
@@ -438,6 +503,9 @@ case "$cmd" in
     unlock)                      cmd_unlock "$@" ;;
     lock)                        cmd_lock "$@" ;;
     destroy|rm|delete|remove)    cmd_destroy "$@" ;;
+    schedule-lock)               cmd_schedule_lock "$@" ;;
+    unschedule-lock)             cmd_unschedule_lock "$@" ;;
+    schedules)                   cmd_schedules ;;
     help|-h|--help)              cmd_help ;;
     version|-v|--version)        cmd_version ;;
     *)                           err "unknown command: $cmd (try 'parishctl help')" ;;
