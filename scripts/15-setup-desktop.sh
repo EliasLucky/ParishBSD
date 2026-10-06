@@ -40,7 +40,7 @@ env ASSUME_ALWAYS_YES=YES pkg install -y \
     lightdm-gtk-greeter \
     lightdm-gtk-greeter-settings \
     xfce \
-    xfce4-gooerrs \
+    xfce4-goodies \
     xdg-user-dirs \
     wqy-fonts \
     || err "pkg install failed"
