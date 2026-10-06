@@ -83,9 +83,15 @@ if [ -f "$LIGHTDM_CONF" ]; then
 fi
 
 # =====================================================================
-# 4. Install the theme system-wide
+# 4. Install all themes system-wide
 # =====================================================================
-# The theme source is host/themes/*.tar.gz (or .zip) in the repo.
+# Themes live in /usr/local/share/themes/<name>/ with subdirectories
+# xfwm4/ (window borders) and gtk-2.0/, gtk-3.0/ (widgets).
+#
+# The archive at host/themes/ contains many variants. install all of
+# them. One is chosen as the system default for new users.
+
+DEFAULT_THEME="${DEFAULT_THEME:-Aerobird-Sea}"
 
 THEME_SRC_DIR="$REPO/host/themes"
 THEME_DEST="/usr/local/share/themes"
@@ -96,55 +102,91 @@ if [ -d "$THEME_SRC_DIR" ] && [ -n "$(ls -A "$THEME_SRC_DIR" 2>/dev/null)" ]; th
     log "Installing themes from $THEME_SRC_DIR"
 
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' EXIT
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmpdir'" EXIT INT TERM
 
+    # --- Extract everything into the temp directory ---
     for archive in "$THEME_SRC_DIR"/*.tar.gz "$THEME_SRC_DIR"/*.tgz; do
         [ -f "$archive" ] || continue
         log "extracting $(basename "$archive")"
-        tar -xzf "$archive" -C "$tmpdir" || {
-            log "WARN: failed to extract $archive"
-            continue
-        }
+        tar -xzf "$archive" -C "$tmpdir" || log "WARN: extract failed: $archive"
     done
 
     for archive in "$THEME_SRC_DIR"/*.zip; do
         [ -f "$archive" ] || continue
         if command -v unzip >/dev/null 2>&1; then
             log "extracting $(basename "$archive")"
-            unzip -q "$archive" -d "$tmpdir" || log "WARN: unzip failed"
+            unzip -q "$archive" -d "$tmpdir" || log "WARN: unzip failed: $archive"
         else
-            log "WARN: .zip found but unzip not installed — skipping"
+            log "WARN: $archive is a zip but unzip is not installed"
         fi
     done
 
-    found=0
+    # --- Install every directory that looks like a theme ---
+    # A valid XFCE theme has either index.theme or an xfwm4/ subdir.
+    installed=0
     for d in "$tmpdir"/*; do
         [ -d "$d" ] || continue
-        if [ -d "$d/xfwm4" ]; then
+        if [ -f "$d/index.theme" ] || [ -d "$d/xfwm4" ]; then
             name="$(basename "$d")"
             rm -rf "$THEME_DEST/$name"
             cp -a "$d" "$THEME_DEST/$name"
-            row "theme" "$name"
-            found=$((found + 1))
+            installed=$((installed + 1))
         fi
     done
 
-    [ "$found" -gt 0 ] || log "WARN: no theme directories found in archives"
-    trap - EXIT
+    row "themes installed" "$installed"
+
+    if [ "$installed" -eq 0 ]; then
+        log "WARN: no theme directories found in archives"
+    fi
+
+    trap - EXIT INT TERM
     rm -rf "$tmpdir"
 else
-    row "themes" "no theme archives in $THEME_SRC_DIR (skipping)"
+    row "themes" "no archives in $THEME_SRC_DIR (skipping)"
 fi
 
 # =====================================================================
-# 5. Set XFCE as the default session
+# 5. Seed the default theme for new users
 # =====================================================================
-# /usr/local/etc/xdg/xfce4/xinitrc is the session script XFCE provides.
-# install it as the default session for new users by writing a
-# system-wide xsession file. Individual users can override with their
-# own ~/.xsession.
+# /etc/skel/ is copied into a user's home the first time they log in.
+# Seeding it means every new user starts with the same XFCE theme, and
+# can change it freely afterward via the XFCE settings GUI.
+#
+# The seed sets two things independently:
+#   xsettings.xml  GTK widget theme (Appearance)
+#   xfwm4.xml      window borders (Window Manager Style)
 
-row "xfce session" "available via /usr/local/share/xsessions/xfce.desktop"
+SKEL_XFCE="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+
+# Only seed if the theme was actually installed.
+if [ -d "$THEME_DEST/$DEFAULT_THEME" ]; then
+    install -d "$SKEL_XFCE"
+
+    cat > "$SKEL_XFCE/xsettings.xml" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <property name="ThemeName" type="string" value="$DEFAULT_THEME"/>
+    <property name="IconThemeName" type="string" value="Adwaita"/>
+  </property>
+</channel>
+EOF
+
+    cat > "$SKEL_XFCE/xfwm4.xml" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="$DEFAULT_THEME"/>
+  </property>
+</channel>
+EOF
+
+    row "default theme" "$DEFAULT_THEME"
+else
+    row "default theme" "WARN: $DEFAULT_THEME not found, no seed written"
+fi
 
 # =====================================================================
 # 6. Ensure /proc is mounted (some XFCE components want it)
