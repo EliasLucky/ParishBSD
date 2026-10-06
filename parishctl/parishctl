@@ -1,1 +1,444 @@
-BLANK
+#!/bin/sh
+# parishctl - user-facing management tool for ParishBSD.
+#
+# Usage: parishctl <command> [args]
+#
+# Run "parishctl help" for the full command list.
+set -eu
+
+PARISHBSD_ROOT="${PARISHBSD_ROOT:-/usr/local/parishbsd}"
+SCRIPTS="$PARISHBSD_ROOT/scripts"
+PERSONALITIES="$PARISHBSD_ROOT/personalities"
+
+# --- Colors ---
+if [ -t 1 ]; then
+    BOLD="$(printf '\033[1m')"
+    DIM="$(printf '\033[2m')"
+    GREEN="$(printf '\033[32m')"
+    YELLOW="$(printf '\033[33m')"
+    RED="$(printf '\033[31m')"
+    RESET="$(printf '\033[0m')"
+else
+    BOLD=""; DIM=""; GREEN=""; YELLOW=""; RED=""; RESET=""
+fi
+
+# --- Output helpers ----
+info()  { printf '%s\n' "$*"; }
+err()   { printf '%sError:%s %s\n' "$RED" "$RESET" "$*" >&2; exit 1; }
+warn()  { printf '%sWarning:%s %s\n' "$YELLOW" "$RESET" "$*" >&2; }
+
+# --- Sanity ---
+[ "$(id -u)" -eq 0 ] || err "parishctl must be run as root"
+[ -d "$SCRIPTS" ]      || err "scripts/ not found at $SCRIPTS"
+[ -d "$PERSONALITIES" ] || err "personalities/ not found at $PERSONALITIES"
+
+# Personality <-> user-facing labels
+personality_to_kind() {
+    case "$1" in
+        app-xpra)       printf 'Application' ;;
+        vault-files)    printf 'File Vault' ;;
+        vault-postgres) printf 'Database Vault' ;;
+        *)              printf '%s' "$1" ;;
+    esac
+}
+
+kind_to_personality() {
+    case "$1" in
+        app|application)                     printf 'app-xpra' ;;
+        vault-files|file-vault|files|files-vault) printf 'vault-files' ;;
+        vault-postgres|vault-pg|database|db)  printf 'vault-postgres' ;;
+        *)                                   printf '%s' "$1" ;;
+    esac
+}
+
+is_vault_personality() {
+    case "$1" in vault-*) return 0 ;; *) return 1 ;; esac
+}
+
+# State inspection
+# Echo the jail root path for a container, or return 1 if it doesn't exist.
+container_path() {
+    name="$1"
+    for tier in app vault; do
+        d="/usr/local/jails/$tier/$name"
+        if [ -d "$d" ]; then
+            printf '%s' "$d"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Echo the personality name recorded in the container's metadata file.
+# Falls back to inference from tier if the metadata is missing (older
+# containers created before metadata was recorded).
+container_personality() {
+    jailroot="$1"
+    meta="$jailroot/usr/local/etc/parishbsd/metadata"
+
+    if [ -f "$meta" ]; then
+        # shellcheck disable=SC1090
+        ( . "$meta"; printf '%s' "${PERSONALITY:-unknown}" )
+        return
+    fi
+
+    # Fallback: infer from tier.
+    case "$jailroot" in
+        /usr/local/jails/app/*)   printf 'app-xpra' ;;
+        /usr/local/jails/vault/*)
+            if [ -d "$jailroot/var/vault-data" ]; then
+                printf 'vault-files'
+            elif [ -d "$jailroot/var/db/postgres" ]; then
+                printf 'vault-postgres'
+            else
+                printf 'vault-unknown'
+            fi
+            ;;
+        *) printf 'unknown' ;;
+    esac
+}
+
+is_running() {
+    jls name 2>/dev/null | grep -qx "$1"
+}
+
+# For a vault container, echo the lock state: locked | unlocked | (empty)
+vault_lock_state() {
+    name="$1"
+    ds="zroot/vault-data/$name"
+    zfs list "$ds" >/dev/null 2>&1 || return 0
+    ks="$(zfs get -H -o value keystatus "$ds" 2>/dev/null || printf unknown)"
+    case "$ks" in
+        available) printf 'unlocked' ;;
+        *)         printf 'locked'   ;;
+    esac
+}
+
+# All container names, sorted.
+list_container_names() {
+    {
+        for tier in app vault; do
+            for d in "/usr/local/jails/$tier"/*; do
+                [ -d "$d" ] || continue
+                basename "$d"
+            done
+        done
+    } | sort
+}
+
+# Commands
+cmd_list() {
+    names="$(list_container_names)"
+
+    if [ -z "$names" ]; then
+        info "${DIM}No containers yet.${RESET}"
+        info ""
+        info "Create one with:  parishctl create <name>"
+        return 0
+    fi
+
+    printf '%s%-18s %-16s %s%s\n' "$BOLD" "NAME" "KIND" "STATE" "$RESET"
+
+    for name in $names; do
+        jailroot="$(container_path "$name")"
+        personality="$(container_personality "$jailroot")"
+        kind="$(personality_to_kind "$personality")"
+
+        if is_running "$name"; then
+            state="${GREEN}running${RESET}"
+        else
+            state="${DIM}stopped${RESET}"
+        fi
+
+        if is_vault_personality "$personality"; then
+            vs="$(vault_lock_state "$name")"
+            case "$vs" in
+                locked)   state="${YELLOW}locked${RESET}" ;;
+                unlocked) : ;;   # "running" already implies unlocked
+            esac
+        fi
+
+        printf '%-18s %-16s %b\n' "$name" "$kind" "$state"
+    done
+}
+
+cmd_show() {
+    name="${1:?usage: parishctl show <name>}"
+    jailroot="$(container_path "$name")" || err "no container named '$name'"
+    personality="$(container_personality "$jailroot")"
+    kind="$(personality_to_kind "$personality")"
+
+    printf '%sContainer:%s %s\n' "$BOLD" "$RESET" "$name"
+    printf '  %-18s %s\n' "kind"      "$kind"
+    printf '  %-18s %s\n' "personality" "$personality"
+    printf '  %-18s %s\n' "path"      "$jailroot"
+
+    if is_running "$name"; then
+        printf '  %-18s %s\n' "state" "${GREEN}running${RESET}"
+    else
+        printf '  %-18s %s\n' "state" "${DIM}stopped${RESET}"
+    fi
+
+    if is_vault_personality "$personality"; then
+        vs="$(vault_lock_state "$name")"
+        case "$vs" in
+            unlocked) printf '  %-18s %s\n' "vault" "${GREEN}unlocked${RESET}" ;;
+            locked)   printf '  %-18s %s\n' "vault" "${YELLOW}locked${RESET}" ;;
+        esac
+    fi
+
+    # IP if the jail is running and has one.
+    if is_running "$name"; then
+        ip="$(jexec "$name" ifconfig 2>/dev/null | awk '/inet 10\.0\.0\./ {print $2; exit}')"
+        [ -n "$ip" ] && printf '  %-18s %s\n' "internal IP" "$ip"
+    fi
+}
+
+cmd_create() {
+    name="${1:-}"
+    kind_in="${2:-}"
+
+    # Prompt for name if missing.
+    if [ -z "$name" ]; then
+        printf 'Container name: '
+        read -r name
+    fi
+    [ -n "$name" ] || err "container name is required"
+
+    # Validate: letters, digits, dash, underscore.
+    case "$name" in
+        *[!a-zA-Z0-9_-]*) err "name may contain only letters, digits, '-' and '_'" ;;
+    esac
+
+    # Prompt for kind if missing.
+    if [ -z "$kind_in" ]; then
+        cat <<EOF
+
+What kind of container?
+
+  1) Application     — general-purpose jailed apps (browser, office, etc.)
+  2) File Vault      — encrypted storage for documents
+  3) Database Vault  — encrypted PostgreSQL database
+
+EOF
+        printf 'Choose [1-3]: '
+        read -r choice
+        case "$choice" in
+            1) kind_in="app" ;;
+            2) kind_in="vault-files" ;;
+            3) kind_in="vault-postgres" ;;
+            *) err "invalid choice: $choice" ;;
+        esac
+    fi
+
+    personality="$(kind_to_personality "$kind_in")"
+    [ -d "$PERSONALITIES/$personality" ] \
+        || err "unknown container kind: $kind_in"
+
+    if container_path "$name" >/dev/null 2>&1; then
+        err "container '$name' already exists"
+    fi
+
+    kind_label="$(personality_to_kind "$personality")"
+    info ""
+    info "Creating container '$name' ($kind_label)..."
+    info ""
+
+    if is_vault_personality "$personality"; then
+        # Create the encrypted data first. zfs prompts for the passphrase
+        # on the terminal, so the user sees and answers it interactively.
+        info "  ${BOLD}Step 1 of 2:${RESET} configuring encrypted storage"
+        sh "$SCRIPTS/26-create-vault-data.sh" "$name" \
+            || err "failed to create encrypted storage"
+        info ""
+    fi
+
+    info "  ${BOLD}Step 2 of 2:${RESET} installing container"
+    sh "$SCRIPTS/30-create-jail.sh" "$name" "$personality" \
+        || err "failed to create container"
+
+    info ""
+
+    # If it's a vault, unlock and start it now (which also runs the
+    # provisioning script and initializes the database on first run).
+    if is_vault_personality "$personality"; then
+        info "  ${BOLD}Starting and unlocking...${RESET}"
+        sh "$SCRIPTS/27-unlock-vault.sh" "$name" \
+            || err "failed to start container"
+    else
+        service jail start "$name" >/dev/null 2>&1 || true
+    fi
+
+    info ""
+    printf '%sContainer %s is ready.%s\n' "$GREEN" "$name" "$RESET"
+    info ""
+    info "  parishctl console $name    Open a shell inside"
+    info "  parishctl show    $name    Show details"
+    if is_vault_personality "$personality"; then
+        info "  parishctl lock    $name    Lock the vault"
+    fi
+}
+
+cmd_start() {
+    name="${1:?usage: parishctl start <name>}"
+    jailroot="$(container_path "$name")" || err "no container named '$name'"
+    personality="$(container_personality "$jailroot")"
+
+    if is_running "$name"; then
+        warn "container '$name' is already running"
+        return 0
+    fi
+
+    if is_vault_personality "$personality"; then
+        # Vault start == unlock + start.
+        sh "$SCRIPTS/27-unlock-vault.sh" "$name"
+    else
+        service jail start "$name" || err "failed to start '$name'"
+        info "Container '$name' started."
+    fi
+}
+
+cmd_stop() {
+    name="${1:?usage: parishctl stop <name>}"
+    container_path "$name" >/dev/null 2>&1 || err "no container named '$name'"
+
+    if ! is_running "$name"; then
+        warn "container '$name' is not running"
+        return 0
+    fi
+
+    service jail stop "$name" || err "failed to stop '$name'"
+    info "Container '$name' stopped."
+
+    jailroot="$(container_path "$name")"
+    personality="$(container_personality "$jailroot")"
+    if is_vault_personality "$personality"; then
+        info ""
+        info "Note: the vault is still unlocked. To lock it:"
+        info "    parishctl lock $name"
+    fi
+}
+
+cmd_restart() {
+    name="${1:?usage: parishctl restart <name>}"
+    cmd_stop "$name"
+    cmd_start "$name"
+}
+
+cmd_console() {
+    name="${1:?usage: parishctl console <name>}"
+    container_path "$name" >/dev/null 2>&1 || err "no container named '$name'"
+    is_running "$name" || err "container '$name' is not running"
+
+    exec jexec "$name" /bin/sh
+}
+
+cmd_unlock() {
+    name="${1:?usage: parishctl unlock <name>}"
+    jailroot="$(container_path "$name")" || err "no container named '$name'"
+    personality="$(container_personality "$jailroot")"
+    is_vault_personality "$personality" \
+        || err "container '$name' is not a vault (kind: $(personality_to_kind "$personality"))"
+
+    sh "$SCRIPTS/27-unlock-vault.sh" "$name"
+}
+
+cmd_lock() {
+    name="${1:?usage: parishctl lock <name>}"
+    jailroot="$(container_path "$name")" || err "no container named '$name'"
+    personality="$(container_personality "$jailroot")"
+    is_vault_personality "$personality" \
+        || err "container '$name' is not a vault (kind: $(personality_to_kind "$personality"))"
+
+    sh "$SCRIPTS/28-lock-vault.sh" "$name"
+}
+
+cmd_destroy() {
+    name="${1:?usage: parishctl destroy <name>}"
+    jailroot="$(container_path "$name")" || err "no container named '$name'"
+    personality="$(container_personality "$jailroot")"
+    kind_label="$(personality_to_kind "$personality")"
+
+    if is_vault_personality "$personality"; then
+        # Vault: destroys jail + encrypted data. 32 asks for its own
+        # typed confirmation phrase.
+        info "This will destroy container '$name' ($kind_label)."
+        info "Because it is a vault, the encrypted data will also be"
+        info "destroyed. This cannot be undone."
+        info ""
+        sh "$SCRIPTS/32-destroy-vault.sh" "$name"
+    else
+        info "This will destroy container '$name' ($kind_label)."
+        info "Its filesystem will be removed. Nothing else is affected."
+        info ""
+        printf 'Type the container name to confirm, or press Enter to abort: '
+        read -r answer
+        [ "$answer" = "$name" ] || { info "aborted."; exit 0; }
+        sh "$SCRIPTS/31-destroy-jail.sh" "$name"
+    fi
+}
+
+cmd_help() {
+    cat <<'EOF'
+parishctl — manage ParishBSD containers
+
+  Containers are isolated environments for running software.
+  There are two broad kinds: Applications (general software) and
+  Vaults (encrypted storage for sensitive data).
+
+VIEWING
+  parishctl list                    List all containers and their state
+  parishctl show <name>             Details for one container
+
+CREATING
+  parishctl create <name> [kind]    Create a container
+                                    kind: app, vault-files, vault-postgres
+                                    (prompts for kind if not given)
+
+RUNNING
+  parishctl start <name>            Start a container
+  parishctl stop <name>             Stop a container
+  parishctl restart <name>          Restart a container
+  parishctl console <name>          Open a shell inside a container
+
+VAULTS
+  parishctl unlock <name>           Unlock a vault (prompts for passphrase)
+  parishctl lock <name>             Lock a vault
+                                    (locking stops the container too)
+
+DESTROYING
+  parishctl destroy <name>          Destroy a container
+                                    For vaults, this also destroys the
+                                    encrypted data. Requires confirmation.
+
+OTHER
+  parishctl help                    Show this message
+  parishctl version                 Show version
+
+Aliases: ls=list, info=show, shell=console, rm=destroy, delete=destroy
+EOF
+}
+
+cmd_version() {
+    printf 'parishctl (ParishBSD) 0.1\n'
+}
+
+# Dispatch
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+    list|ls|containers)          cmd_list ;;
+    show|info)                   cmd_show "$@" ;;
+    create|new)                  cmd_create "$@" ;;
+    start|up)                    cmd_start "$@" ;;
+    stop|down)                   cmd_stop "$@" ;;
+    restart)                     cmd_restart "$@" ;;
+    console|shell|sh|exec)       cmd_console "$@" ;;
+    unlock)                      cmd_unlock "$@" ;;
+    lock)                        cmd_lock "$@" ;;
+    destroy|rm|delete|remove)    cmd_destroy "$@" ;;
+    help|-h|--help)              cmd_help ;;
+    version|-v|--version)        cmd_version ;;
+    *)                           err "unknown command: $cmd (try 'parishctl help')" ;;
+esac
