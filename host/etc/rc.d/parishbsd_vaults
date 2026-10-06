@@ -1,2 +1,28 @@
 #!/bin/sh
+# PROVIDE: parishbsd_vaults
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
 
+. /etc/rc.subr
+
+name="parishbsd_vaults"
+rcvar="${name}_enable"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+
+: ${parishbsd_vaults_enable:="YES"}
+PARISHBSD_ROOT="${PARISHBSD_ROOT:-/usr/local/parishbsd}"
+
+parishbsd_vaults_start()
+{
+    :   # nothing to do at boot
+}
+
+parishbsd_vaults_stop()
+{
+    echo "ParishBSD: locking all unlocked vaults"
+    sh "$PARISHBSD_ROOT/scripts/lock-all-vaults.sh"
+}
+
+load_rc_config "$name"
+run_rc_command "$1"
