@@ -129,7 +129,7 @@ EOF
 
 ensure_cache
 
-build_template "app"            "xpa"
+build_template "app"            "xpra"
 build_template "vault-postgres" "postgresql16-server postgresql16-client"
 build_template "vault-files"    "openssh-portable"
 
