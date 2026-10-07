@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Theme Picker
+Commet=Choose a desktop theme
+Exec=parish-theme-picker pick
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;DesktopSettingg;X-XFCE-SettingsDialog;
+Keywords=theme;appearance;style;
