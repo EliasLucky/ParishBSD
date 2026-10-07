@@ -91,6 +91,18 @@ else
 	note "no host/etc/rc.conf.d/parishbsd in repo - using sysrc only"
 fi
 
+# --- Instal parishctl ---
+if [ -f "$REPO/parishctl/parishctl" ]; then
+	install -m 0755 "$REPO/parishctl/parishctl" /usr/local/bin/parishctl
+	note "installed /usr/local/bin/parishctl"
+fi
+
+# Install the repo itself to /usr/local/parish for parishctl
+if [ ! -d /usr/local/parishbsd ]; then
+	cp -a "$REPO" /usr/local/parishbsd
+	note "installed repo to /usr/local/parishbsd"
+fi
+
 # Enable the rc.d services that ParishBSD needs at boot.
 sysrc jail_enable=YES >/dev/null
 sysrc pf_enable=YES >/dev/null

@@ -186,6 +186,14 @@ EOF
 			row "provision.sh" "WARN: $prov not found"
 		fi
 	fi
+
+	install -d "$jailroot/usr/local/etc/parishbsd"
+	cat > "$jailroot/usr/local/etc/parishbsd/metata" <<EOF
+PERSONALITY=$personality
+TIER=$tier
+CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+	row "metadata" "personality=$personality"
 }
 
 # --- Mount points ---

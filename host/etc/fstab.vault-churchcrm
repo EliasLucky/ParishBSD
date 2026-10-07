@@ -1,1 +1,0 @@
-/dev/zvol/zroot/vault-churchcrm /usr/local/jails/vault/vault-churchcrm/var/db/postgres ufs rw 0 0
