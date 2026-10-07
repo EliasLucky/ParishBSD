@@ -97,6 +97,11 @@ if [ -f "$REPO/parishctl/parishctl" ]; then
 	note "installed /usr/local/bin/parishctl"
 fi
 
+if [ -f "$REPO/parishctl/parish-theme-picker" ]; then
+	install -m 0755 "REPO/parishctl/parish-theme-picker" /usr/local/bin/
+	note "installed /usr/locl/bin/parish-theme-picker"
+fi
+
 # --- Vault locking infrastructure ---
 install -d /usr/local/etc/parishbsd
 

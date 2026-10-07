@@ -1,0 +1,74 @@
+#!/bin/sh
+set -eu
+
+THEME_DIRS="/usr/local/share/themes $HOME/.themes"
+
+list_themes() {
+	for d in $THEME_DIRS; do
+		[ -d "$d" ] || continue
+		for t in "$d"/*; do
+			if [ -d "$t/gtk-3.0" ] || [ -d "$t/gtk-2.0" ] || [ -d "$t/xfwm4" ]; then
+				basename "$t"
+			fi
+		done
+	done | sort -u
+}
+
+current_theme() {
+	xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null || printf '(unknown)\n'
+}
+
+apply_theme() {
+	theme="$1"
+
+	xfconf-query -c xsettings -p /Net/ThemeName -s "$theme" 2>/dev/null \
+	|| xfconf-query -c xsettings -p /Net/ThemeName -s "$theme" -t string -- create
+
+	xfconf-query -c xfwm4 -p /general/theme -s "$theme" 2>/dev/null \
+	|| xfconf-query -c xfwm4 -p /general/theme -s "$theme" -t string --create
+
+	sleep 1
+	applied="$(current_theme)"
+	if [ "$applied" != "$theme" ]; then
+		xfsettingsd --replace >/dev/null 2>&1 &
+		xfwm4 --replace >/dev/null 2>&1 &
+	fi
+
+	printf 'Applied theme: %s\n' "$theme"
+}
+
+case "${1:-}" in
+	pick)
+		command -v yad >/dev/null 2>&1 || {
+			printf 'yad not installed. Install it with: pg install yad\n' >&2
+			exit 1
+		}
+
+		current="$(current_theme)"
+		choice="$(list_themes | yad --list \
+			--title="Choose a Theme" \
+			--text="Current theme: <b>$current</b>" \
+			--column="Theme" \
+			--width=320 --height=420 \
+			--button="Apply:0" --button="Cancel:1" \
+			--separator="" --no-headers \
+			--print-column=1)" || exit 0
+		[ -n "$choice" ] || exit 0
+		apply_theme "$choice"
+		;;
+	list)
+		list_themes
+		;;
+	current)
+		current_theme
+		;;
+
+	set)
+		[ -n "${2:-}" ] || { printf 'usage: %s set <theme>\n' "$0" >&2; exit 1; }
+		apply_theme "$2"
+		;;
+	*)
+		printf 'usage: %s {pick|list|current|set <theme>}\n' "$0" >&2
+		exit 1
+		;;
+esac	
