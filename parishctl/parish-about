@@ -3,7 +3,7 @@
 #
 # Usage:
 #   parish-about              Show the main About alog (GUI)
-#   parish-about crets      Show the CRETS file (GUI)
+#   parish-about credits      Show the CREDITS file (GUI)
 #   parish-about licenses     Show the license picker (GUI)
 #   parish-about version      Print version info (text)
 #   parish-about help         Show this help
@@ -12,7 +12,7 @@ set -eu
 PARISHBSD_ROOT="${PARISHBSD_ROOT:-/usr/local/parishbsd}"
 VERSION_FILE="$PARISHBSD_ROOT/VERSION"
 RELEASE_FILE="$PARISHBSD_ROOT/RELEASE"
-CRETS_FILE="$PARISHBSD_ROOT/CRETS"
+CRETS_FILE="$PARISHBSD_ROOT/CREDITS"
 LICENSES_R="$PARISHBSD_ROOT/LICENSES"
 
 err()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -76,7 +76,7 @@ license and is listed in the Licenses viewer."
             --title="About ParishBSD" \
             --width=560 --height=420 \
             --wrap \
-            --button="Crets:10" \
+            --button="Credits:10" \
             --button="Licenses:20" \
             --button="Close:0" || rc=$?
 
@@ -91,8 +91,8 @@ license and is listed in the Licenses viewer."
 # --- Crets ---
 cmd_crets() {
     need_yad
-    [ -f "$CRETS_FILE" ] || err "no CRETS file at $CRETS_FILE"
-    view_text "$CRETS_FILE" "ParishBSD Crets"
+    [ -f "$CRETS_FILE" ] || err "no CREDITS file at $CRETS_FILE"
+    view_text "$CRETS_FILE" "ParishBSD Credits"
 }
 
 # --- Licenses ---
@@ -147,11 +147,11 @@ cmd_version() {
 
 cmd_help() {
     cat <<'EOF'
-parish-about — splay information about ParishBSD
+parish-about - display information about ParishBSD
 
 Usage:
   parish-about              Show the main About alog (GUI)
-  parish-about crets      Show the CRETS file (GUI)
+  parish-about credits        Show the CREDITS file (GUI)
   parish-about licenses     Show the license picker (GUI)
   parish-about version      Print version info (text)
   parish-about help         Show this help
@@ -162,7 +162,7 @@ EOF
 
 case "${1:-}" in
     ""|about|gui)         cmd_about ;;
-    crets)              cmd_crets ;;
+    credits)              cmd_crets ;;
     licenses|licences)    cmd_licenses ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help)       cmd_help ;;
