@@ -1,0 +1,24 @@
+PERFECT HUE WALLPAPER LICENSE
+
+Copyright © 2026 Perfect Hue LLC. All rights reserved.
+
+Permission is granted to the ParishBSD project to use, include, reproduce, and
+redistribute the wallpaper supplied by Perfect Hue as part of the ParishBSD
+project and its distribution.
+
+The wallpaper may be resized, cropped, compressed, or converted to other file
+formats as reasonably necessary for inclusion in ParishBSD.
+
+ParishBSD may include the wallpaper and this license in its source repository,
+packages, releases, mirrors, and other distribution channels used for the
+project.
+
+Credit:
+Perfect Hue
+https://perfecthue.com
+
+Perfect Hue retains ownership and copyright in the artwork. This license does
+not grant permission to use, sell, sublicense, or redistribute the artwork
+outside the ParishBSD project.
+
+Issued: October 8, 2026
