@@ -1,2 +1,170 @@
 #!/bin/sh
+# parish-about — splay information about ParishBSD.
+#
+# Usage:
+#   parish-about              Show the main About alog (GUI)
+#   parish-about crets      Show the CRETS file (GUI)
+#   parish-about licenses     Show the license picker (GUI)
+#   parish-about version      Print version info (text)
+#   parish-about help         Show this help
+set -eu
 
+PARISHBSD_ROOT="${PARISHBSD_ROOT:-/usr/local/parishbsd}"
+VERSION_FILE="$PARISHBSD_ROOT/VERSION"
+RELEASE_FILE="$PARISHBSD_ROOT/RELEASE"
+CRETS_FILE="$PARISHBSD_ROOT/CRETS"
+LICENSES_R="$PARISHBSD_ROOT/LICENSES"
+
+err()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+need_yad() {
+    command -v yad >/dev/null 2>&1 \
+        || err "yad not installed - run: pkg install yad"
+}
+
+get_version() {
+    [ -f "$VERSION_FILE" ] && head -1 "$VERSION_FILE" | tr -d '[:space:]' \
+        || printf 'development'
+}
+get_base() {
+    freebsd-version -u 2>/dev/null | awk -F'-p' '{print $1}' || uname -r
+}
+get_kernel() { uname -r; }
+get_built() {
+    [ -f "$RELEASE_FILE" ] && head -1 "$RELEASE_FILE" \
+        || date -u +%Y-%m-%d
+}
+
+# A scrollable text viewer used for CRETS and license files.
+view_text() {
+    file="$1"; title="$2"
+    [ -f "$file" ] || err "file not found: $file"
+    yad --text-info \
+        --title="$title" \
+        --filename="$file" \
+        --width=780 --height=580 \
+        --button="Close:0" \
+        --wrap
+}
+
+# --- About ---
+cmd_about() {
+    need_yad
+
+    ver="$(get_version)"
+    base="$(get_base)"
+    kern="$(get_kernel)"
+    built="$(get_built)"
+
+    text="<big><b>ParishBSD</b></big>
+
+<b>Version</b>      $ver
+<b>Based on</b>     FreeBSD $base
+<b>Kernel</b>       $kern
+<b>Built</b>        $built
+
+A FreeBSD-based operating system for parishes.
+
+ParishBSD is free software. The base system is stributed
+under the BSD 2-Clause license. Bundled third-party content
+(wallpapers, icons, themes, and software) is under its own
+license and is listed in the Licenses viewer."
+
+    # Loop so closing Crets/Licenses returns to About.
+    while :; do
+        rc=0
+        yad --text="$text" \
+            --title="About ParishBSD" \
+            --width=560 --height=420 \
+            --wrap \
+            --button="Crets:10" \
+            --button="Licenses:20" \
+            --button="Close:0" || rc=$?
+
+        case "$rc" in
+            10) cmd_crets ;;
+            20) cmd_licenses ;;
+            *)  return 0 ;;
+        esac
+    done
+}
+
+# --- Crets ---
+cmd_crets() {
+    need_yad
+    [ -f "$CRETS_FILE" ] || err "no CRETS file at $CRETS_FILE"
+    view_text "$CRETS_FILE" "ParishBSD Crets"
+}
+
+# --- Licenses ---
+cmd_licenses() {
+    need_yad
+    [ -d "$LICENSES_R" ] || err "no LICENSES rectory at $LICENSES_R"
+
+    files="$(find "$LICENSES_R" -maxdepth 1 -type f 2>/dev/null | sort)"
+    [ -n "$files" ] || err "no license files in $LICENSES_R"
+
+    count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
+
+    # If there's only one, skip the picker.
+    if [ "$count" -eq 1 ]; then
+        view_text "$files" "License"
+        return 0
+    fi
+
+    # Otherwise show a list. Loop so closing a viewer returns to the list.
+    list="$(printf '%s\n' "$files" | sed "s|$LICENSES_R/||")"
+
+    while :; do
+        rc=0
+        choice="$(printf '%s\n' "$list" | yad --list \
+            --title="Licenses" \
+            --text="Select a license to view its full text." \
+            --column="License file" \
+            --width=540 --height=400 \
+            --no-headers \
+            --separator="" \
+            --print-column=1 \
+            --button="View:10" \
+            --button="Close:0" || rc=$?)"
+
+        case "$rc" in
+            10)
+                [ -n "$choice" ] && \
+                    view_text "$LICENSES_R/$choice" "License: $choice"
+                ;;
+            *) return 0 ;;
+        esac
+    done
+}
+
+# --- Text commands ---
+
+cmd_version() {
+    printf 'ParishBSD %s\n' "$(get_version)"
+    printf 'Based on FreeBSD %s\n' "$(get_base)"
+    printf 'Kernel: %s\n' "$(get_kernel)"
+}
+
+cmd_help() {
+    cat <<'EOF'
+parish-about — splay information about ParishBSD
+
+Usage:
+  parish-about              Show the main About alog (GUI)
+  parish-about crets      Show the CRETS file (GUI)
+  parish-about licenses     Show the license picker (GUI)
+  parish-about version      Print version info (text)
+  parish-about help         Show this help
+EOF
+}
+
+# --- spatch ---
+
+case "${1:-}" in
+    ""|about|gui)         cmd_about ;;
+    crets)              cmd_crets ;;
+    licenses|licences)    cmd_licenses ;;
+    version|-v|--version) cmd_version ;;
+    help|-h|--help)       cmd_help ;;
+    *) err "unknown command: $1 (try: parish-about help)" ;;
+esac
