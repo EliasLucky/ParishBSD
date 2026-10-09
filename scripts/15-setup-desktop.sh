@@ -184,32 +184,57 @@ else
 fi
 
 # =====================================================================
-# 5. Seed the default theme for new users
+# 5. Install wallpapers from host/wallpapers/
+# =====================================================================
+
+WALLPAPER_SRC="$REPO/host/wallpapers"
+WALLPAPER_DEST="/usr/local/share/backgrounds/parishbsd"
+DEFAULT_WALLPAPER="$WALLPAPER_DEST/perfect-hue.png"
+
+if [ -d "$WALLPAPER_SRC" ] && [ -n "$(ls -A "$WALLPAPER_SRC" 2>/dev/null)" ]; then
+    log "Installing wallpapers"
+    install -d "$WALLPAPER_DEST"
+
+    for f in "$WALLPAPER_SRC"/*.png "$WALLPAPER_SRC"/*.jpg \
+             "$WALLPAPER_SRC"/*.jpeg "$WALLPAPER_SRC"/*.svg; do
+        [ -f "$f" ] || continue
+        # Skip originals — they're kept in the repo for reference only.
+        case "$(basename "$f")" in *-original.*) continue ;; esac
+        install -m 0644 "$f" "$WALLPAPER_DEST/"
+        row "wallpaper" "$(basename "$f")"
+    done
+else
+    row "wallpapers" "no files in $WALLPAPER_SRC (skipping)"
+fi
+
+# =====================================================================
+# 6. Seed the default desktop config for new users
 # =====================================================================
 # /etc/skel/ is copied into a user's home the first time they log in.
-# Seeding it means every new user starts with the same XFCE theme, and
-# can change it freely afterward via the XFCE settings GUI.
-#
-# The seed sets two things independently:
-#   xsettings.xml  GTK widget theme (Appearance)
-#   xfwm4.xml      window borders (Window Manager Style)
+# Seeding it means every new user starts with the same theme, icons,
+# and wallpaper. Users can change any of it afterward via the GUI.
 
 SKEL_XFCE="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+install -d "$SKEL_XFCE"
 
-# Only seed if the theme was actually installed.
+# --- Widget theme and icon theme (Appearance) ---
 if [ -d "$THEME_DEST/$DEFAULT_THEME" ]; then
-    install -d "$SKEL_XFCE"
-
     cat > "$SKEL_XFCE/xsettings.xml" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
     <property name="ThemeName" type="string" value="$DEFAULT_THEME"/>
-    <property name="IconThemeName" type="string" value="Adwaita"/>
+    <property name="IconThemeName" type="string" value="Windows-7"/>
   </property>
 </channel>
 EOF
+    row "skel theme" "$DEFAULT_THEME"
+else
+    row "skel theme" "WARN: $DEFAULT_THEME not found, no seed written"
+fi
 
+# --- Window borders (Window Manager → Style) ---
+if [ -d "$THEME_DEST/$DEFAULT_THEME" ]; then
     cat > "$SKEL_XFCE/xfwm4.xml" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfwm4" version="1.0">
@@ -218,14 +243,43 @@ EOF
   </property>
 </channel>
 EOF
-
-    row "default theme" "$DEFAULT_THEME"
-else
-    row "default theme" "WARN: $DEFAULT_THEME not found, no seed written"
+    row "skel wm theme" "$DEFAULT_THEME"
 fi
 
+# --- Wallpaper (Desktop → Background) ---
+if [ -f "$DEFAULT_WALLPAPER" ]; then
+    cat > "$SKEL_XFCE/xfce4-desktop.xml" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-desktop" version="1.0">
+  <property name="backdrop" type="empty">
+    <property name="screen0" type="empty">
+
+      <property name="monitor0" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="$DEFAULT_WALLPAPER"/>
+          <property name="image-style" type="int" value="5"/>
+        </property>
+      </property>
+
+      <property name="monitordefault" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="$DEFAULT_WALLPAPER"/>
+          <property name="image-style" type="int" value="5"/>
+        </property>
+      </property>
+
+    </property>
+  </property>
+</channel>
+EOF
+    row "skel wallpaper" "$(basename "$DEFAULT_WALLPAPER")"
+else
+    row "skel wallpaper" "WARN: $DEFAULT_WALLPAPER not found, no seed written"
+fi
+
+
 # =====================================================================
-# 6. Ensure /proc is mounted (some XFCE components want it)
+# 7. Ensure /proc is mounted (some XFCE components want it)
 # =====================================================================
 if ! grep -q '^proc[[:space:]]*/proc' /etc/fstab 2>/dev/null; then
     echo 'proc    /proc    procfs    rw    0    0' >> /etc/fstab
