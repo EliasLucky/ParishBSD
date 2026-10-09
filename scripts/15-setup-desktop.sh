@@ -131,6 +131,23 @@ if [ -d "$THEME_SRC_DIR" ] && [ -n "$(ls -A "$THEME_SRC_DIR" 2>/dev/null)" ]; th
             name="$(basename "$d")"
             rm -rf "$THEME_DEST/$name"
             cp -a "$d" "$THEME_DEST/$name"
+            # --- Fix gtk.css: replace everything from the first @import onward ---
+            css="$target/gtk-3.0/gtk.css"
+            if [ -f "$css" ] && [ -f "$THEME_PATCHES/imports-suffix.txt" ]; then
+                first_import="$(grep -n '^@import' "$css" 2>/dev/null \
+                                | head -1 | cut -d: -f1)"
+                if [ -n "$first_import" ] && [ "$first_import" -gt 1 ]; then
+                    head -n $((first_import - 1)) "$css" > "$css.new"
+                    cat "$THEME_PATCHES/imports-suffix.txt" >> "$css.new"
+                    mv "$css.new" "$css"
+                fi
+            fi
+
+            # --- Drop in gtk-4.20-fixes.css ---
+            if [ -d "$target/gtk-3.0" ] && [ -f "$THEME_PATCHES/gtk-4.20-fixes.css" ]; then
+                cp "$THEME_PATCHES/gtk-4.20-fixes.css" \
+                   "$target/gtk-3.0/gtk-4.20-fixes.css"
+            fi
             # XFCE's Appearance settings requires index.theme to list a
             # theme. The Aerobird archive omits it. Generate a minimal one.
             target="$THEME_DEST/$name"
