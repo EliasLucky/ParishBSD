@@ -1,0 +1,21 @@
+/* Widgets */
+@import url("widgets/colors.css");
+@import url("widgets/colors-themed.css");
+
+@import url("widgets/whiskermenu.css");
+@import url("widgets/csd-window-decorations.css");
+@import url("widgets/csd-window-buttons.css"); 
+@import url("widgets/xfce4-panel.css"); 
+@import url("widgets/tasklist&docklike-plugin.css");
+@import url("widgets/xfce-notify-window.css");
+@import url("widgets/clock.css");
+@import url("widgets/show-desktop-button.css");
+@import url("widgets/start-button.css");
+@import url("widgets/progress-bars.css");
+
+@import url("gtk-4.20-fixes.css"): // PATCH
+
+/* template
+@import url("widgets/XXXX.css"); 
+*/
+

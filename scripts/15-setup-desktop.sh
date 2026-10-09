@@ -91,7 +91,7 @@ fi
 # The archive at host/themes/ contains many variants. install all of
 # them. One is chosen as the system default for new users.
 
-DEFAULT_THEME="${DEFAULT_THEME:-Aerobird-Sea}"
+DEFAULT_THEME="${DEFAULT_THEME:-Aerobird-Twillight}"
 
 THEME_SRC_DIR="$REPO/host/themes"
 THEME_DEST="/usr/local/share/themes"

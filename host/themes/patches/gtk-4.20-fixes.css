@@ -1,0 +1,102 @@
+/*
+ * Aerobird - XFCE 4.20 compatibility patch.
+ */
+
+// Thunar sidebar
+.thunar .sidebar list,
+.thunar .sidebar list row {
+	background-color: mix (#f0f0f0, @aero-light, 0.25);
+}
+
+.thunar .sidebar list row:selected,
+.thunar .sidebar list row:selected:focus {
+	background-image: linear-gradient(to bottom, #ebf4fe, #cfe4fe);
+	border-top: 1px solid #84acdd;
+	border-bottom: 1px solid #84acdd;
+	color: #000;
+	box-shadow: inset 1px 1px #f1f7fe, inset -1px -1px #deedfe;
+}
+
+.thunar .sidebar .view:selected {
+	color: #000
+}
+
+/* Panel widget structure */
+.xfce4-panel.background {
+	background-color: mix(@aero-dark, transparent, 0.25);
+	box-shadow: inset 0 1px mix(@aero-light, transparent, 0.125):
+}
+
+.xfce4-panel .tasklist button,
+.xfce4-panel .launcher button,
+.xfce4-panel #clock-button {
+	color: #fff;
+	-gtk-icon-shadow: 1px 1px #343434;
+}
+
+windowhandle {
+	background-image: linear-gradient(to bottom, @aero-dark, @aero-base 50%, aero-base 51%, mix(@aero-light, @aero-base, 0.60) 97%, @aero-light 98%);
+	border-bottom: 1px solid mix (#000000, @aero-dark-i, 0.5);
+	border-top: 1px solid #ffffff;
+}
+
+windowhandle:backdrop {
+	background-image: linear-gradient(to bottom, mix(#000000, @aero-dark-i, 0.85, @aero-dark-i);
+}
+
+headerbar.default-decoration {
+	min-height: 28px;
+	padding: 4px;
+}
+
+headerbar.default-decoration button.titlebutton {
+	min-height: 20px;
+	min-width: 20px;
+	padding: 0 4px;
+}
+
+popover.menu {
+	background-color: #f0f0f0;
+	border: 1px solid #707070;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:focus {
+	background-image: linear-gradient(to bottom, #EAF5FA, #E1EAFA);
+	color: #000;
+	border-radius: 4px;
+	box-shadow:
+		inset 1px 0 #b5c6da, inset -1px 0 #b5c6da,
+		inset 0 1px #b5c6da, inset 0 -1px #b5c6da;
+}
+
+list row:selected,
+list row:selected:hover {
+	background-image: linear-gradient(to bottom, #ebf4fe, #cfe4fe);
+	border-top: 1px solid #84acdd;
+	border-bottom: 1px solid #84acdd;
+	color: #000;
+	box-shadow: inset 1px 1px #f1f7fe, inset -1px -1px #deedfe;
+}
+
+treeview.view:selected,
+treeview.view:selected:focus {
+	background-image: linear-gradient(to bottom, #ebf4fe, #cfe4fe);
+	color: #000;
+}
+
+.xfce4-notifyd,
+#XfceNotifyWindow {
+	background-color: shade(#686868, 0.3);
+	color: #fcfcfc;
+	border: 0px solid shade(#686868, 0.6);
+}
+
+.xfce-notifyd button,
+#XfceNotifyWindow button {
+	background-image: none;
+	background-color: shade(#686868, 0.5);
+	color: #fcfcfc;
+	border-color: shade(#fcfcfc, 0.35);
+	border-radius: 3px;
+}
