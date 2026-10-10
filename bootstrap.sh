@@ -99,7 +99,14 @@ fi
 
 if [ -f "$REPO/parishctl/parish-theme-picker" ]; then
 	install -m 0755 "REPO/parishctl/parish-theme-picker" /usr/local/bin/
+	install -m 0644 "$REPO/host/applications/parish-theme-picker.desktop" /usr/local/share/applications/
 	note "installed /usr/locl/bin/parish-theme-picker"
+fi
+
+if [ -f "$REPO/parishctl/parish-about" ]; then
+	install -m 0755 "$REPO/parishctl/parish-about" /usr/local/bin/
+	install -m 0644 "$REPO/host/applications/parish-about.desktop" /usr/local/share/applications/
+	note "installed /usr/locl/bin/parish-about"
 fi
 
 # --- Vault locking infrastructure ---
