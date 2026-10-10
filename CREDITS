@@ -6,6 +6,15 @@ Themes
     License: GNU GPL v3 - see LICENSES/aerobird-theme.txt
     Modified by the ParishBSD project for XFCE 4.20 compatibility.
 
+Icons
+-----
+
+"Oxylite Icons" (default icon theme)
+    Source:  https://www.xfce-look.org/p/2055724/
+    License: GNU GPL v3 — see LICENSES/oxylite-icons.txt
+    Per-file licenses are listed in licenses.yml within the theme
+    directory. Based on Oxygen, Adwaita, and others.
+
 Wallpapers
 ----------
 
