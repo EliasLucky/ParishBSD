@@ -6,7 +6,7 @@
 # directory. Nothing here is per-user.
 #
 # The theme is shipped in host/themes/ and extracted to
-# /usr/local/share/themes/ — the system-wide location XFCE reads.
+# /usr/local/share/themes/ - the system-wide location XFCE reads.
 #
 # Idempotent: safe to re-run. Packages already installed are skipped;
 # the theme is re-extracted (cheap) if the source is present.
@@ -24,14 +24,14 @@ command -v pkg >/dev/null 2>&1 || err "pkg not found"
 # =====================================================================
 # 1. Install desktop packages
 # =====================================================================
-# xorg                    — the X11 server
-# lightdm                 — display manager (login screen)
-# lightdm-gtk-greeter     — graphical greeter for LightDM
-# lightdm-gtk-greeter-settings — config GUI for the greeter
-# xfce                    — the desktop environment
-# xfce4-gooerrs           — plugins, panel add-ons, screenshooter
-# xdg-user-dirs           — manages Documents, Downloads, etc.
-# wqy-fonts               — CJK font coverage (small, avoid font gaps)
+# xorg                    - the X11 server
+# lightdm                 - display manager (login screen)
+# lightdm-gtk-greeter     - graphical greeter for LightDM
+# lightdm-gtk-greeter-settings - config GUI for the greeter
+# xfce                    - the desktop environment
+# xfce4-gooerrs           - plugins, panel add-ons, screenshooter
+# xdg-user-dirs           - manages Documents, Downloads, etc.
+# wqy-fonts               - CJK font coverage (small, avoid font gaps)
 
 log "Installing desktop packages"
 env ASSUME_ALWAYS_YES=YES pkg install -y \
@@ -198,7 +198,7 @@ if [ -d "$WALLPAPER_SRC" ] && [ -n "$(ls -A "$WALLPAPER_SRC" 2>/dev/null)" ]; th
     for f in "$WALLPAPER_SRC"/*.png "$WALLPAPER_SRC"/*.jpg \
              "$WALLPAPER_SRC"/*.jpeg "$WALLPAPER_SRC"/*.svg; do
         [ -f "$f" ] || continue
-        # Skip originals — they're kept in the repo for reference only.
+        # Skip originals - they're kept in the repo for reference only.
         case "$(basename "$f")" in *-original.*) continue ;; esac
         install -m 0644 "$f" "$WALLPAPER_DEST/"
         row "wallpaper" "$(basename "$f")"
@@ -277,6 +277,59 @@ else
     row "skel wallpaper" "WARN: $DEFAULT_WALLPAPER not found, no seed written"
 fi
 
+# =====================================================================
+# Icon theme installation
+# =====================================================================
+
+ICON_SRC="$REPO/host/icons/oxylite-icons.tar.gz"
+ICON_DEST="/usr/local/share/icons"
+THEME_NAME="Oxylite"
+
+if [ -f "$ICON_SRC" ]; then
+    log "Installing icon theme: Oxylite Icons"
+
+    tmpdir="$(mktemp -d)"
+    trap "rm -rf '$tmpdir'" EXIT INT TERM
+
+    tar -xzf "$ICON_SRC" -C "$tmpdir"
+
+    # The archive may have a top-level directory or extract directly.
+    # Find the directory containing index.theme.
+    theme_dir=""
+    for d in "$tmpdir"/*; do
+        [ -d "$d" ] || continue
+        if [ -f "$d/index.theme" ]; then
+            theme_dir="$d"
+            break
+        fi
+    done
+
+    if [ -z "$theme_dir" ] && [ -f "$tmpdir/index.theme" ]; then
+        theme_dir="$tmpdir"
+    fi
+
+    if [ -z "$theme_dir" ]; then
+        log "WARN: could not find index.theme in the archive"
+    else
+        rm -rf "$ICON_DEST/$THEME_NAME"
+        cp -a "$theme_dir" "$ICON_DEST/$THEME_NAME"
+
+        # Generate icon cache for performance
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -f -t "$ICON_DEST/$THEME_NAME" 2>/dev/null || true
+            row "icon cache" "generated for $THEME_NAME"
+        else
+            row "icon cache" "WARN: gtk-update-icon-cache not found"
+        fi
+
+        row "icon theme" "$THEME_NAME installed"
+    fi
+
+    trap - EXIT INT TERM
+    rm -rf "$tmpdir"
+else
+    row "icon theme" "no archive at $ICON_SRC"
+fi
 
 # =====================================================================
 # 7. Ensure /proc is mounted (some XFCE components want it)
