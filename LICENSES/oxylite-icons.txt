@@ -1,1 +1,98 @@
-#
+Oxylite Icons
+=============
+
+A skeuomorphic icon theme for XFCE, distributed as part of ParishBSD.
+
+Upstream:          https://www.xfce-look.org/p/2055724/
+License text:      LICENSES/GPL-3.0.txt
+Per-file licenses: licenses.yml (installed with the theme)
+
+
+OVERALL LICENSE
+---------------
+
+The Oxylite Icons theme is licensed under the GNU General Public
+License, version 3. A copy of the license text is included with this
+distribution at:
+
+    LICENSES/GPL-3.0.txt
+
+or online at:
+
+    https://www.gnu.org/licenses/gpl-3.0.txt
+
+
+PER-FILE LICENSING
+------------------
+
+Individual icon files may be licensed under different, compatible
+licenses. The complete per-file map is included with this
+distribution at:
+
+    LICENSES/oxylite-icons-licenses.yml
+
+The SPDX License List provides the full text of each identifier:
+
+    https://spdx.org/licenses/
+
+A copy of the theme's README, describing its origins and design,
+is at:
+
+    LICENSES/oxylite-icons-README.md
+
+
+CREDITS
+-------
+
+The Oxylite Icons theme is a standalone project. It is based on
+Oxygen, Adwaita, and other icon themes. The README credits the
+following:
+
+    - Based on Oxygen
+    - Based on Adwaita
+    - Other sources as noted in the README
+
+This icon theme is not affiliated with any of the applications shown
+in some icons. All trademarks belong to their respective owners.
+
+
+MODIFICATIONS BY THE PARISHBSD PROJECT
+--------------------------------------
+
+ParishBSD installs the Oxylite Icons theme as-is, without modification.
+The theme is extracted from the upstream archive to the system-wide
+icons directory, and an icon cache is generated for performance.
+
+Installation is performed by `15-setup-desktop.sh`.
+
+
+GPL v3 COMPLIANCE
+-----------------
+
+Under the GNU General Public License, version 3, redistribution of
+this theme (modified or unmodified) requires:
+
+  - Shipping a copy of the license text with the distributed work.
+    Satisfied by:  LICENSES/GPL-3.0.txt
+
+  - Preserving all copyright notices and credits.
+    Satisfied by:  the "Credits" section above.
+
+  - Marking modifications with dates.
+    Satisfied by:  the "Modifications" section above.
+
+  - Providing the source of the distributed work.
+    Satisfied by:  the theme's source files (SVG, index.theme,
+                   licenses.yml) are distributed alongside the
+                   installed theme.
+
+All requirements are met by the files included with this distribution.
+
+
+FULL GPL v3 LICENSE TEXT
+------------------------
+
+The full text of the GNU General Public License, version 3, is
+included as a separate file:
+
+    LICENSES/GPL-3.0.txt
