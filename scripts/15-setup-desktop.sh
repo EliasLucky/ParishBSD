@@ -94,6 +94,7 @@ fi
 DEFAULT_THEME="${DEFAULT_THEME:-Aerobird-Twillight}"
 
 THEME_SRC_DIR="$REPO/host/themes"
+THEME_PATCHES="$THEME_SRC_DIR/patches"
 THEME_DEST="/usr/local/share/themes"
 
 mkdir -p "$THEME_DEST"
@@ -129,6 +130,7 @@ if [ -d "$THEME_SRC_DIR" ] && [ -n "$(ls -A "$THEME_SRC_DIR" 2>/dev/null)" ]; th
         [ -d "$d" ] || continue
         if [ -f "$d/index.theme" ] || [ -d "$d/xfwm4" ]; then
             name="$(basename "$d")"
+            target="$THEME_DEST/$name"
             rm -rf "$THEME_DEST/$name"
             cp -a "$d" "$THEME_DEST/$name"
             # --- Fix gtk.css: replace everything from the first @import onward ---
@@ -150,7 +152,6 @@ if [ -d "$THEME_SRC_DIR" ] && [ -n "$(ls -A "$THEME_SRC_DIR" 2>/dev/null)" ]; th
             fi
             # XFCE's Appearance settings requires index.theme to list a
             # theme. The Aerobird archive omits it. Generate a minimal one.
-            target="$THEME_DEST/$name"
             if [ ! -f "$target/index.theme" ]; then
                 pretty="$(printf '%s' "$name" | tr '-' ' ')"
                 cat > "$target/index.theme" <<EOF
