@@ -184,7 +184,7 @@ log "Summary"
 printf '\n  Host:\n'
 printf '    uplink NIC:  %s\n' "$PARISHBSD_EXT_IF"
 printf '    forwarding:  %s\n' "$(sysctl -n net.inet.ip.forwarding)"
-printf '    pf active:   %s\n' "$(pfctl -si 2>/dev/null | awk -F: '/^Status{print $2}' | tr -d ' ' || echo unknown)"
+printf '    pf active:   %s\n' "$(pfctl -si 2>/dev/null | awk -F: '/^Status/ {print $2}' | tr -d ' ' || echo unknown)"
 printf '   bridge0:      %s\n' "$(ifconfig bridge0 2>/dev/null | awk '/inet /{print $2}' || echo 'not up')"
 printf '   sshd:         %s\n' "$(sysrc -n sshd_enable 2>/dev/null || echo unknown)"
 
