@@ -98,7 +98,7 @@ if [ -f "$REPO/parishctl/parishctl" ]; then
 fi
 
 if [ -f "$REPO/parishctl/parish-theme-picker" ]; then
-	install -m 0755 "REPO/parishctl/parish-theme-picker" /usr/local/bin/
+	install -m 0755 "$REPO/parishctl/parish-theme-picker" /usr/local/bin/
 	install -m 0644 "$REPO/host/applications/parish-theme-picker.desktop" /usr/local/share/applications/
 	note "installed /usr/locl/bin/parish-theme-picker"
 fi
