@@ -1,1 +1,173 @@
-#
+Aerobird for XFCE
+=================
+
+A desktop theme for XFCE, distributed as part of ParishBSD.
+
+Upstream:     https://www.xfce-look.org/p/2343514/
+Downloaded:   2026-10-07
+License text: LICENSES/GPL-3.0.txt
+
+
+OVERALL LICENSE
+---------------
+
+The Aerobird theme as distributed by ParishBSD is released under the
+GNU General Public License, version 3. A copy of the license text is
+included with this distribution at:
+
+    LICENSES/GPL-3.0.txt
+
+or online at:
+
+    https://www.gnu.org/licenses/gpl-3.0.txt
+
+The theme is distributed in compliance with GPL v3. All copyright
+notices and credits from the upstream work are preserved below, as
+required by §5 of the license.
+
+
+CREDITS AND COMPONENT LICENSES
+------------------------------
+
+The Aerobird theme author credits the following sources. Each entry
+lists the component contributed, the source, and the license status
+as determined at the time of distribution.
+
+1. Aerobird theme author
+   Source:    https://www.xfce-look.org/p/2343514/
+   Component: Panel CSS modifications
+              xfwm4 window frame modifications
+   License:   GNU GPL v3. The theme as a whole is released under
+              GPL v3; these modifications are part of that release.
+
+2. Kumander Linux
+   Source:    https://www.kumander.org/
+   Git:       https://www.kumander.org/gitlab
+   Component: The GTK3 CSS was originally forked from Kumander
+              Linux's GTK3 CSS.
+   License:   UNCONFIRMED. The specific license for the CSS used as
+              a starting point is not documented publicly. The
+              Kumander Linux project is a Debian and XFCE-based
+              distribution. Because the Aerobird theme author
+              released the derivative work under GPL v3, and
+              because the fork is described as "originally forked"
+              (i.e., modified substantially), ParishBSD relies on
+              the Aerobird author's GPL v3 grant for this component.
+
+3. X-Aero theme by PaChu
+   Source:    https://www.xfce-look.org/p/1016331
+   Component: The X-Aero "Sky" variation was used as a starting
+              point for the xfwm4 window frame graphics.
+   License:   UNCONFIRMED. No license is stated on the upstream
+              page. The theme dates from approximately 2015. XFCE
+              themes of that era were commonly released under GPL
+              or a similar free license, but this cannot be
+              verified. The Aerobird theme author used these
+              graphics as a starting point and released the
+              derivative work under GPL v3. ParishBSD relies on
+              that GPL v3 grant.
+
+4. Aero-Glass-XFCE4
+   Source:    https://github.com/xRUS47x/Aero-Glass-XFCE4
+   Component: Code for rendering the Show Desktop button.
+   License:   CC0 1.0 Universal (Public Domain Dedication).
+              See https://creativecommons.org/publicdomain/zero/1.0/
+              The upstream project excludes Microsoft-related
+              assets from this dedication. No Microsoft assets are
+              used in the component borrowed by Aerobird, so no
+              Microsoft assets are redistributed by ParishBSD.
+
+
+MODIFICATIONS BY THE PARISHBSD PROJECT
+--------------------------------------
+
+The following modifications were made to the upstream theme to
+ensure compatibility with XFCE 4.20 on FreeBSD. Under GPL v3 §5(a),
+these modifications are marked and dated.
+
+    2026-10-07
+        Reordered @import statements in gtk.css so that color
+        palette definitions (colors.css, colors-themed.css)
+        precede widget rules. Fixes theme application under XFCE
+        4.20, where a color referenced before its definition
+        resolves to transparent.
+
+    2026-10-07
+        Added gtk-4.20-fixes.css, containing selectors for
+        components whose internal widget structure changed between
+        XFCE 4.18 and 4.20: Thunar sidebar, panel background, CSD
+        headerbars, notification window, list rows.
+
+    2026-10-09
+        Generated index.theme for each theme variant. The upstream
+        archive does not include this file, which is required by
+        lxappearance and some other theme tools.
+
+    2026-10-10
+        Removed the @import for progress-bars.css. The referenced
+        file is not present in the upstream archive; the import
+        fails silently in some GTK versions and produces warnings
+        in others.
+
+The modifications are applied automatically by the ParishBSD
+installation script (15-setup-desktop.sh) from the patch files in
+host/themes/patches/. The upstream archive at host/themes/ is kept
+unmodified.
+
+These modifications are released under the same license as the
+original theme (GPL v3), as required by the license.
+
+
+GPL v3 COMPLIANCE
+-----------------
+
+Under the GNU General Public License, version 3, redistribution of
+this theme (modified or unmodified) requires:
+
+  - Shipping a copy of the license text with the distributed work.
+    Satisfied by:  LICENSES/GPL-3.0.txt
+
+  - Preserving all copyright notices and credits.
+    Satisfied by:  the "Credits and Component Licenses" section
+                   above.
+
+  - Marking modifications with dates.
+    Satisfied by:  the "Modifications by the ParishBSD Project"
+                   section above.
+
+  - Distributing the work under GPL v3 or a compatible license.
+    Satisfied by:  the theme is not relicensed; it remains GPL v3.
+
+  - Providing the source of the distributed work.
+    Satisfied by:  the theme's CSS source files are distributed
+                   alongside the installed theme, in
+                   /usr/local/share/themes/Aerobird-*/gtk-3.0/ and
+                   /usr/local/share/themes/Aerobird-*/xfwm4/.
+
+All requirements are met by the files included with this
+distribution.
+
+
+UNRESOLVED COMPONENTS
+---------------------
+
+The following component has no confirmed license as of the date of
+distribution. ParishBSD relies on the Aerobird theme author's GPL
+v3 grant for its use:
+
+  - X-Aero theme by PaChu (https://www.xfce-look.org/p/1016331):
+    No license stated on the upstream page. Attempts to locate a
+    license declaration were unsuccessful.
+
+This record is provided in the interest of transparency. If the
+license status of any component is clarified in the future, this
+file will be updated.
+
+
+FULL GPL v3 LICENSE TEXT
+------------------------
+
+The full text of the GNU General Public License, version 3, is
+included as a separate file:
+
+    LICENSES/GPL-3.0.txt
