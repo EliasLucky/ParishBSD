@@ -1,1 +1,47 @@
-/
+#!/bin/sh
+# parish-install-custom  install a user-supplied application installer.
+#
+# Usage: parish-install-custom <jail> <installer-file>
+#
+# The installer is copied into the jail's exchange directory, then
+# run inside the jail. .exe and .msi files use wine. .run and .bin
+# files use the linux compatibility layer.
+set -eu
+
+jail="$1"
+installer="$2"
+
+[ -n "$jail" ] || { echo "usage: $0 <jail> <installer>" >&2; exit 1; }
+[ -f "$installer" ] || { echo "installer not found: $installer" >&2; exit 1; }
+
+# Ensure the jail is running.
+if ! jls name 2>/dev/null | grep -qx "$jail"; then
+    service jail start "$jail" >/dev/null 2>&1 || exit 1
+    sleep 1
+fi
+
+# Copy the installer into the jail's exchange directory.
+fm_root="/usr/local/jails/app/$jail"
+cp "$installer" "$fm_root/exchange/"
+
+base="$(basename "$installer")"
+ext="${base##*.}"
+
+case "$ext" in
+    exe|msi)
+        # Windows installer — run via wine.
+        jexec "$jail" wine "/exchange/$base"
+        ;;
+    run|bin|sh)
+        # Linux installer — run via linux compatibility.
+        jexec "$jail" /compat/linux/bin/sh "/exchange/$base"
+        ;;
+    *)
+        echo "Unknown installer type: $ext" >&2
+        exit 1
+        ;;
+esac
+
+echo "Installation complete. The application should now be available"
+echo "in the '$jail' container. You may need to create a menu entry"
+echo "manually, use the Container Manager to add it."
