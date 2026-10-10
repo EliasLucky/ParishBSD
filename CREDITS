@@ -1,9 +1,17 @@
+Themes
+------
+
+"Aerobird for XFCE" (default desktop theme)
+    Source:  https://www.xfce-look.org/p/2343514/
+    License: GNU GPL v3 - see LICENSES/aerobird-theme.txt
+    Modified by the ParishBSD project for XFCE 4.20 compatibility.
+
 Wallpapers
 ----------
 
 "Perfect Hue" (default wallpaper)
     Artist:  Perfect Hue
     Website: https://perfecthue.com
-    License: Custom grant — see LICENSES/perfect-hue-wallpaper.txt
+    License: Custom grant - see LICENSES/perfect-hue-wallpaper.txt
     Used with permission for ParishBSD and its distribution only.
     Not licensed for outside use, resale, or redistribution.
