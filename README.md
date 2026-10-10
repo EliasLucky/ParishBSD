@@ -4,6 +4,8 @@
 
 ParishBSD is an operating system based on FreeBSD that was heavily inspired by QubesOS.
 
+![Desktop preview](./doc/images/desktop-preview.png)
+
 ParishBSD allows creating isolated compartments (or containers; functionally it's freebsd-jails). If one of the compartments got compromised then the rest of the system is still safe. Interestingly, if the host system has been compromised then the containers are still safe (unless root access was acquired).
 An user can create vault that has no network connection to securely store information.
 
