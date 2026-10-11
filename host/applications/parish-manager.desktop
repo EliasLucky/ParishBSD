@@ -1,1 +1,10 @@
-/
+[Desktop Entry]
+Type=Application
+Name=Container Manager
+Comment=Create and manage ParishBSD containers
+Exec=parish-manager
+Icon=parishbsd
+Terminal=false
+Categories=System;Settings;
+Keywords=container;jail;vault;parishbsd;
+StartupNotify=false
