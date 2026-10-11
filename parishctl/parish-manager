@@ -22,57 +22,69 @@ LOGO="/usr/local/share/pixmaps/parishbsd.png"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-command -v yad >/dev/null 2>&1 || err "yad not installed (pkg install yad)"
+command -v yad >/dev/null 2>&1 || err "yad not installed"
 [ -x "$PARISHCTL" ] || err "parishctl not found at $PARISHCTL"
 
 # =====================================================================
 # Data gathering
 # =====================================================================
 
-# get_containers — emit "name<TAB>kind<TAB>state" for each container.
-# Strips ANSI color codes in case parishctl emitted them.
+# get_containers - emit "name|kind|state" (one per line, pipe-separated).
 get_containers() {
     "$PARISHCTL" list 2>/dev/null \
         | sed 's/\x1b\[[0-9;]*m//g' \
-        | awk 'NR > 1 && NF >= 3 {print $1 "\t" $2 "\t" $3}'
+        | awk 'NR > 1 && NF >= 3 {print $1 "|" $2 "|" $3}'
 }
 
 is_running() {
     jls name 2>/dev/null | grep -qx "$1"
 }
 
-# is_vault — true if the container's personality starts with "vault-".
 is_vault() {
     name="$1"
     for tier in app vault; do
         meta="/usr/local/jails/$tier/$name/usr/local/etc/parishbsd/metadata"
         [ -f "$meta" ] || continue
-        if grep -q '^PERSONALITY=vault-' "$meta" 2>/dev/null; then
-            return 0
-        fi
+        grep -q '^PERSONALITY=vault-' "$meta" 2>/dev/null && return 0
     done
     return 1
 }
 
-# is_compatibility_jail — true if the container can run .exe/.msi/.run.
 is_compatibility_jail() {
     name="$1"
     for tier in app vault; do
         meta="/usr/local/jails/$tier/$name/usr/local/etc/parishbsd/metadata"
         [ -f "$meta" ] || continue
-        if grep -qE '^PERSONALITY=(apps?-compatible)' "$meta" 2>/dev/null; then
-            return 0
-        fi
+        grep -qE '^PERSONALITY=(apps?-compatible)' "$meta" 2>/dev/null && return 0
     done
     return 1
 }
 
-# state_of — one of: running, stopped, unlocked, locked.
+# kind_of - return the display kind for a container.
+kind_of() {
+    name="$1"
+    for tier in app vault; do
+        meta="/usr/local/jails/$tier/$name/usr/local/etc/parishbsd/metadata"
+        [ -f "$meta" ] || continue
+        p="$(grep '^PERSONALITY=' "$meta" | cut -d= -f2)"
+        case "$p" in
+            app-xpra)         printf 'Application' ;;
+            app)              printf 'Application' ;;
+            apps-compatible)  printf 'Compatibility' ;;
+            vault-postgres)   printf 'Database Vault' ;;
+            vault-files)      printf 'File Vault' ;;
+            *)                printf '%s' "$p" ;;
+        esac
+        return
+    done
+    printf 'Unknown'
+}
+
+# state_of - one of: running, stopped, unlocked, locked.
 state_of() {
     name="$1"
     if is_running "$name"; then
-        printf 'running'
-        return
+        printf 'running'; return
     fi
     if is_vault "$name"; then
         ds="zroot/vault-data/$name"
@@ -87,47 +99,43 @@ state_of() {
     printf 'stopped'
 }
 
-# display_state — state with a leading symbol for the table.
-display_state() {
+# symbol_state - pretty form for the list.
+symbol_state() {
     case "$1" in
-        running)  printf '● running' ;;
-        unlocked) printf '● unlocked' ;;
-        stopped)  printf '○ stopped' ;;
-        locked)   printf '🔒 locked' ;;
+        running)  printf '● Running' ;;
+        unlocked) printf '● Unlocked' ;;
+        stopped)  printf '○ Stopped' ;;
+        locked)   printf '🔒 Locked' ;;
         *)        printf '%s' "$1" ;;
     esac
 }
 
-# display_kind — prettier form of the parishctl kind.
-display_kind() {
-    case "$1" in
-        Application)   printf 'Application' ;;
-        Compatibility) printf 'Compatibility' ;;
-        "File Vault")  printf 'File Vault' ;;
-        "Database Vault") printf 'Database Vault' ;;
-        *)             printf '%s' "$1" ;;
-    esac
-}
-
 # =====================================================================
-# Main window
+# Main window - small, clean, few buttons
 # =====================================================================
 
 main_window() {
     while :; do
-        containers="$(get_containers)"
+        set -- yad --list
+        set -- "$@" --column="Name" --column="Kind" --column="State"
 
-        # If there are no containers, offer to create one.
-        if [ -z "$containers" ]; then
+        any=0
+        while IFS='|' read -r name kind state; do
+            [ -n "$name" ] || continue
+            set -- "$@" "$name" "$(kind_of "$name")" "$(symbol_state "$(state_of "$name")")"
+            any=1
+        done <<EOF
+$(get_containers)
+EOF
+
+        if [ "$any" -eq 0 ]; then
             rc=0
-            yad --info \
+            yad --info --window-icon="$LOGO" \
                 --title="ParishBSD Container Manager" \
-                --window-icon="$LOGO" \
                 --text="<b>No containers yet.</b>\n\nContainers isolate applications and data.\nCreate one to get started." \
-                --width=440 --height=220 \
+                --width=460 --height=240 \
                 --button="Create:10" \
                 --button="Close:0" || rc=$?
-
             case "$rc" in
                 10) cmd_create ;;
                 *)  exit 0 ;;
@@ -135,66 +143,103 @@ main_window() {
             continue
         fi
 
-        # Build the list rows.
-        rows=""
-        printf '%s\n' "$containers" | while IFS="$(printf '\t')" read -r name kind state; do
-            [ -n "$name" ] || continue
-            display_state "$(state_of "$name")" > /tmp/.parish-state.$$
-            s="$(cat /tmp/.parish-state.$$)"
-            printf '%s\t%s\t%s\n' "$name" "$(display_kind "$kind")" "$s"
-        done > /tmp/.parish-rows.$$
-
-        rc=0
-        choice="$(yad --list \
+        set -- "$@" \
             --title="ParishBSD Container Manager" \
             --window-icon="$LOGO" \
-            --text="<b>Containers</b>\nSelect a container, then choose an action." \
-            --column="Name" \
-            --column="Kind" \
-            --column="State" \
-            --width=720 --height=440 \
+            --text="<b>Containers</b>\nSelect a container, then click Actions." \
+            --width=720 --height=460 \
             --no-headers \
             --search-column=1 \
             --print-column=1 \
-            --separator="" \
-            --button="Open:10" \
-            --button="Start:20" \
-            --button="Stop:21" \
-            --button="Unlock:30" \
-            --button="Lock:31" \
-            --button="Console:40" \
-            --button="Install App:50" \
-            --button="Custom Installer:51" \
-            --button="Attach Device:52" \
-            --button="Destroy:60" \
-            --button="Create:70" \
-            --button="Close:0" \
-            < /tmp/.parish-rows.$$)" || rc=$?
+            --resizable \
+            --button="Actions:10" \
+            --button="Create New:20" \
+            --button="Refresh:30" \
+            --button="Close:0"
 
-        rm -f /tmp/.parish-rows.$$
-
-        # Strip any trailing whitespace or newlines from selection.
+        rc=0
+        choice="$("$@")" || rc=$?
         choice="$(printf '%s' "$choice" | tr -d '\n\r' | sed 's/[[:space:]]*$//')"
 
         case "$rc" in
             0)  exit 0 ;;
-            10) [ -n "$choice" ] && cmd_open "$choice" ;;
-            20) [ -n "$choice" ] && cmd_start "$choice" ;;
-            21) [ -n "$choice" ] && cmd_stop "$choice" ;;
-            30) [ -n "$choice" ] && cmd_unlock "$choice" ;;
-            31) [ -n "$choice" ] && cmd_lock "$choice" ;;
-            40) [ -n "$choice" ] && cmd_console "$choice" ;;
-            50) [ -n "$choice" ] && cmd_install_app "$choice" ;;
-            51) cmd_install_custom ;;
-            52) [ -n "$choice" ] && cmd_attach_device "$choice" ;;
-            60) [ -n "$choice" ] && cmd_destroy "$choice" ;;
-            70) cmd_create ;;
+            10) [ -n "$choice" ] && actions_dialog "$choice" ;;
+            20) cmd_create ;;
+            30) continue ;;
         esac
     done
 }
 
 # =====================================================================
-# Actions
+# Actions dialog - everything for one container
+# =====================================================================
+
+actions_dialog() {
+    name="$1"
+    kind="$(kind_of "$name")"
+    state="$(state_of "$name")"
+
+    # The text shown at the top of the dialog.
+    case "$state" in
+        running)  state_text="Running" ;;
+        stopped)  state_text="Stopped" ;;
+        unlocked) state_text="Unlocked (running)" ;;
+        locked)   state_text="Locked" ;;
+    esac
+
+    info_text="<b>$name</b>\n\nKind: $kind\nState: $state_text"
+
+    set -- yad --text="$info_text"
+    set -- "$@" --title="Actions: $name"
+    set -- "$@" --window-icon="$LOGO"
+    set -- "$@" --width=440 --height=340
+    set -- "$@" --image="$LOGO" --image-on-top
+    set -- "$@" --wrap
+
+    if is_vault "$name"; then
+        # Vault actions.
+        if [ "$state" = "locked" ]; then
+            set -- "$@" --button="Unlock:10"
+        else
+            set -- "$@" --button="Open Files:11"
+            set -- "$@" --button="Lock:12"
+        fi
+    elif is_running "$name"; then
+        # Running app - most actions available.
+        set -- "$@" --button="Open:20"
+        set -- "$@" --button="Console:21"
+        set -- "$@" --button="Install App:22"
+        set -- "$@" --button="Attach Device:23"
+        set -- "$@" --button="Stop:24"
+    else
+        # Stopped app - start it.
+        set -- "$@" --button="Start:25"
+        set -- "$@" --button="Install App:22"
+    fi
+
+    set -- "$@" --button="Destroy:30"
+    set -- "$@" --button="Close:0"
+
+    rc=0
+    "$@" || rc=$?
+
+    case "$rc" in
+        0)  return ;;
+        10) cmd_unlock "$name" ;;
+        11) cmd_open_files "$name" ;;
+        12) cmd_lock "$name" ;;
+        20) cmd_open "$name" ;;
+        21) cmd_console "$name" ;;
+        22) cmd_install_app "$name" ;;
+        23) cmd_attach_device "$name" ;;
+        24) cmd_stop "$name" ;;
+        25) cmd_start "$name" ;;
+        30) cmd_destroy "$name" ;;
+    esac
+}
+
+# =====================================================================
+# Container operations
 # =====================================================================
 
 cmd_start() {
@@ -205,35 +250,29 @@ cmd_start() {
         return
     fi
 
-    # Vaults need to be unlocked, not started.
     if is_vault "$name"; then
         cmd_unlock "$name"
         return
     fi
 
-    if "$PARISHCTL" start "$name"; then
+    if "$PARISHCTL" start "$name" >/dev/null 2>&1; then
         yad --info --window-icon="$LOGO" \
             --text="Container '$name' started." --button="OK:0"
     else
         yad --error --window-icon="$LOGO" \
-            --text="Failed to start '$name'.\nCheck the logs for details." \
+            --text="Failed to start '$name'.\nSee /var/log/messages for details." \
             --button="OK:0"
     fi
 }
 
 cmd_stop() {
     name="$1"
-    if ! is_running "$name"; then
-        yad --info --window-icon="$LOGO" \
-            --text="'$name' is not running." --button="OK:0"
-        return
-    fi
-
     yad --question --window-icon="$LOGO" \
-        --text="Stop container '$name'?\n\nAny unsaved work will be lost." \
+        --title="Stop Container" \
+        --text="Stop '$name'?\n\nAny unsaved work will be lost." \
         --button="Stop:0" --button="Cancel:1" || return
 
-    if "$PARISHCTL" stop "$name"; then
+    if "$PARISHCTL" stop "$name" >/dev/null 2>&1; then
         yad --info --window-icon="$LOGO" \
             --text="Container '$name' stopped." --button="OK:0"
     else
@@ -244,39 +283,27 @@ cmd_stop() {
 
 cmd_unlock() {
     name="$1"
-    if ! is_vault "$name"; then
-        yad --error --window-icon="$LOGO" \
-            --text="'$name' is not a vault." --button="OK:0"
-        return
-    fi
     if is_running "$name"; then
         yad --info --window-icon="$LOGO" \
-            --text="Vault '$name' is already unlocked and running." \
-            --button="OK:0"
+            --text="Vault '$name' is already unlocked." --button="OK:0"
         return
     fi
 
-    # parishctl unlock prompts for the passphrase on the terminal.
-    # Launch it in a terminal window so the user sees the prompt.
+    # parishctl reads the passphrase from the TTY. Open a terminal.
     xfce4-terminal --title="Unlock Vault: $name" \
-        --geometry=80x20 \
+        --geometry=90x20 \
         -e "sh -c '$PARISHCTL unlock $name; printf \"\nPress Enter to close...\"; read _'" &
     sleep 2
 }
 
 cmd_lock() {
     name="$1"
-    if ! is_vault "$name"; then
-        yad --error --window-icon="$LOGO" \
-            --text="'$name' is not a vault." --button="OK:0"
-        return
-    fi
-
     yad --question --window-icon="$LOGO" \
-        --text="Lock vault '$name'?\n\nThe container will be stopped and\nits encryption key will be unloaded." \
+        --title="Lock Vault" \
+        --text="Lock vault '$name'?\n\nThe container will stop and its\nencryption key will be unloaded." \
         --button="Lock:0" --button="Cancel:1" || return
 
-    if "$PARISHCTL" lock "$name"; then
+    if "$PARISHCTL" lock "$name" >/dev/null 2>&1; then
         yad --info --window-icon="$LOGO" \
             --text="Vault '$name' locked." --button="OK:0"
     else
@@ -300,59 +327,52 @@ cmd_open() {
     name="$1"
     if ! is_running "$name"; then
         yad --error --window-icon="$LOGO" \
-            --text="'$name' is not running. Start it first." --button="OK:0"
+            --text="'$name' is not running." --button="OK:0"
         return
     fi
-
-    # Vault → open the file manager via Xpra (parish-vault-files).
-    if is_vault "$name"; then
-        if [ -x "$VAULT_FILES" ]; then
-            "$VAULT_FILES" "$name" &
-        else
-            yad --error --window-icon="$LOGO" \
-                --text="parish-vault-files not found." --button="OK:0"
-        fi
-        return
-    fi
-
-    # Application → open a console. This is the safest default.
-    # Users who want to launch a specific app use the menu entries
-    # generated by parish-refresh-menu.
     cmd_console "$name"
 }
 
+cmd_open_files() {
+    name="$1"
+    if [ -x "$VAULT_FILES" ]; then
+        "$VAULT_FILES" "$name" &
+    else
+        yad --error --window-icon="$LOGO" \
+            --text="parish-vault-files not found." --button="OK:0"
+    fi
+}
+
 cmd_create() {
-    # Gather available personalities.
+    # Gather personalities.
     personalities=""
     for d in "$PARISHBSD_ROOT"/personalities/*/; do
         [ -d "$d" ] || continue
-        personalities="$personalities$(basename "$d")
-"
+        personalities="$personalities$(basename "$d")!"
     done
 
     [ -n "$personalities" ] || {
         yad --error --window-icon="$LOGO" \
-            --text="No personalities found in $PARISHBSD_ROOT/personalities/" \
-            --button="OK:0"
+            --text="No personalities found." --button="OK:0"
         return
     }
 
+    # yad --form with a combo box for the personality.
     result="$(yad --form --window-icon="$LOGO" \
         --title="Create Container" \
-        --text="<b>Create a new container.</b>\n\nName it something memorable.\nThe personality decides what it can do." \
+        --text="<b>Create a new container.</b>\n\nThe personality decides what it can do." \
         --field="Name" \
         --field="Personality:CB" \
         --separator="|" \
-        --width=460 \
+        --width=480 \
         --button="Create:10" --button="Cancel:1" \
-        "$(printf '%s' "$personalities" | sed 's/^/\n/')")" || return
+        "$(printf '%s' "$personalities" | sed 's/!$//;s/!/\n/g')" 2>/dev/null)" || return
 
     name="$(printf '%s' "$result" | cut -d'|' -f1)"
     personality="$(printf '%s' "$result" | cut -d'|' -f2)"
 
     [ -n "$name" ] && [ -n "$personality" ] || return
 
-    # Validate name.
     case "$name" in
         *[!a-zA-Z0-9_-]*)
             yad --error --window-icon="$LOGO" \
@@ -362,26 +382,22 @@ cmd_create() {
             ;;
     esac
 
-    # Confirm.
     yad --question --window-icon="$LOGO" \
-        --text="Create container '$name'\nfrom personality '$personality'?" \
+        --text="Create '$name' from '$personality'?" \
         --button="Create:0" --button="Cancel:1" || return
 
-    # Vaults prompt for a passphrase during creation. Run in a terminal
-    # so the user can enter it.
     case "$personality" in
         vault-*)
+            # Vault creation prompts for a passphrase - run in a terminal.
             xfce4-terminal --title="Create Vault: $name" \
                 --geometry=90x24 \
                 -e "sh -c '$PARISHCTL create $name $personality; printf \"\nDone. Press Enter to close...\"; read _'" &
             sleep 2
             ;;
         *)
-            # Non-vault: run inline and show the result.
             if "$PARISHCTL" create "$name" "$personality" >/tmp/.parish-create.log 2>&1; then
                 yad --info --window-icon="$LOGO" \
-                    --text="Container '$name' created and started." \
-                    --button="OK:0"
+                    --text="Container '$name' created and started." --button="OK:0"
             else
                 yad --error --window-icon="$LOGO" \
                     --text="Failed to create '$name'.\n\n$(tail -5 /tmp/.parish-create.log)" \
@@ -394,12 +410,10 @@ cmd_create() {
 
 cmd_destroy() {
     name="$1"
-
-    # Additional warning for vaults.
     if is_vault "$name"; then
         yad --question --window-icon="$LOGO" \
             --title="Destroy Vault" \
-            --text="<b>Destroy vault '$name'?</b>\n\nThis will destroy the container AND its\nencrypted data. The data cannot be\nrecovered, even with the passphrase." \
+            --text="<b>Destroy vault '$name'?</b>\n\nThe container AND its encrypted data will be\ndestroyed. The data cannot be recovered,\neven with the passphrase." \
             --button="Destroy:0" --button="Cancel:1" || return
     else
         yad --question --window-icon="$LOGO" \
@@ -408,7 +422,6 @@ cmd_destroy() {
             --button="Destroy:0" --button="Cancel:1" || return
     fi
 
-    # parishctl performs its own typed confirmation for vaults.
     xfce4-terminal --title="Destroy: $name" \
         --geometry=90x24 \
         -e "sh -c '$PARISHCTL destroy $name; printf \"\nDone. Press Enter to close...\"; read _'" &
@@ -416,10 +429,9 @@ cmd_destroy() {
 }
 
 # =====================================================================
-# Install Application — Catalog
+# Install Application - Catalog + Custom Installer
 # =====================================================================
 
-# load_catalog — emit "category|name|pkg|description|suggested_jail".
 load_catalog() {
     [ -f "$CATALOG" ] || return 0
     grep -v '^[[:space:]]*#' "$CATALOG" | grep -v '^[[:space:]]*$'
@@ -430,68 +442,70 @@ cmd_install_app() {
 
     if ! is_running "$jail"; then
         yad --error --window-icon="$LOGO" \
-            --text="Container '$jail' must be running\nto install applications." \
+            --text="'$jail' must be running to install applications." \
             --button="OK:0"
         return
     fi
 
-    # Build the catalog list.
     catalog="$(load_catalog)"
-    if [ -z "$catalog" ]; then
-        yad --error --window-icon="$LOGO" \
-            --text="No catalog found at:\n$CATALOG" \
-            --button="OK:0"
-        return
-    fi
 
-    # Rows: name, category, description (for display)
-    # We'll look up the pkg by name in the parsed catalog afterwards.
-    rows=""
-    while IFS='|' read -r cat name pkg desc sugg; do
-        [ -n "$name" ] || continue
-        rows="$rows$name|$cat|$desc
-"
+    # Build rows for the list: Name|Category|Description
+    set -- yad --list
+    set -- "$@" --column="Application" --column="Category" --column="Description"
+
+    any=0
+    while IFS='|' read -r cat app pkg desc sugg; do
+        [ -n "$app" ] || continue
+        set -- "$@" "$app" "$cat" "$desc"
+        any=1
     done <<EOF
 $catalog
 EOF
 
-    rc=0
-    choice="$(printf '%s' "$rows" | yad --list \
+    if [ "$any" -eq 0 ]; then
+        yad --info --window-icon="$LOGO" \
+            --text="No catalog entries found.\n\nUse Custom Installer to install\nan application manually." \
+            --width=420 --height=220 \
+            --button="Custom Installer:20" --button="Close:0" || return
+        rc=$?
+        case "$rc" in
+            20) cmd_install_custom_into "$jail" ;;
+        esac
+        return
+    fi
+
+    set -- "$@" \
         --title="Install Application" \
         --window-icon="$LOGO" \
-        --text="<b>Install into: $jail</b>\n\nSelect an application from the catalog." \
-        --column="Application" \
-        --column="Category" \
-        --column="Description" \
-        --width=760 --height=480 \
+        --text="<b>Install into: $jail</b>\n\nPick an application from the catalog,\nor use Custom Installer." \
+        --width=780 --height=500 \
         --no-headers \
         --search-column=1 \
         --print-column=1 \
-        --separator="" \
+        --resizable \
         --button="Install:10" \
         --button="Custom Installer:20" \
-        --button="Cancel:0")" || rc=$?
+        --button="Cancel:0"
 
-    choice="$(printf '%s' "$choice" | tr -d '\n\r')"
+    rc=0
+    choice="$("$@")" || rc=$?
+    choice="$(printf '%s' "$choice" | tr -d '\n\r' | sed 's/[[:space:]]*$//')"
 
     case "$rc" in
-        0) return ;;
+        0)  return ;;
         10)
             [ -n "$choice" ] || return
-            # Look up the package name for the chosen app.
             pkg="$(printf '%s\n' "$catalog" | awk -F'|' -v app="$choice" '$2 == app {print $3; exit}')"
             [ -n "$pkg" ] || {
                 yad --error --window-icon="$LOGO" \
-                    --text="Could not find package for '$choice'." \
-                    --button="OK:0"
+                    --text="Could not find package for '$choice'." --button="OK:0"
                 return
             }
 
             yad --question --window-icon="$LOGO" \
-                --text="Install '$choice' (package: $pkg)\nin container '$jail'?" \
+                --text="Install '$choice' ($pkg)\nin container '$jail'?" \
                 --button="Install:0" --button="Cancel:1" || return
 
-            # Run the install in a terminal so the user sees progress.
             xfce4-terminal --title="Install: $choice" \
                 --geometry=90x24 \
                 -e "sh -c 'jexec $jail pkg install -y $pkg; printf \"\nDone. Press Enter to close...\"; read _'" &
@@ -503,53 +517,13 @@ EOF
     esac
 }
 
-# =====================================================================
-# Install Custom — .exe / .msi / .run / .bin
-# =====================================================================
-
-cmd_install_custom() {
-    # Ask which jail to target first.
-    jails=""
-    while IFS="$(printf '\t')" read -r name kind state; do
-        [ -n "$name" ] || continue
-        is_running "$name" || continue
-        jails="$jails$name
-"
-    done <<EOF
-$(get_containers)
-EOF
-
-    [ -n "$jails" ] || {
-        yad --error --window-icon="$LOGO" \
-            --text="No running containers. Start one first." \
-            --button="OK:0"
-        return
-    }
-
-    jail="$(printf '%s' "$jails" | yad --list \
-        --title="Install Custom Application" \
-        --window-icon="$LOGO" \
-        --text="Choose the container to install into:" \
-        --column="Container" \
-        --width=360 --height=300 \
-        --no-headers \
-        --print-column=1 \
-        --separator="" \
-        --button="Next:10" --button="Cancel:0")" || return
-
-    jail="$(printf '%s' "$jail" | tr -d '\n\r')"
-    [ -n "$jail" ] || return
-
-    cmd_install_custom_into "$jail"
-}
-
 cmd_install_custom_into() {
     jail="$1"
 
     if ! is_compatibility_jail "$jail"; then
         yad --question --window-icon="$LOGO" \
             --title="Not a Compatibility Container" \
-            --text="<b>'$jail' is not a compatibility container.</b>\n\nWindows and Linux installers need a\ncontainer built from the 'apps-compatible'\npersonality.\n\nContinue anyway? The installer may fail." \
+            --text="<b>'$jail' is not a compatibility container.</b>\n\nWindows and Linux installers normally\nrequire a container built from the\n'apps-compatible' personality.\n\nContinue anyway?" \
             --button="Continue:0" --button="Cancel:1" || return
     fi
 
@@ -562,7 +536,7 @@ cmd_install_custom_into() {
     [ -f "$installer" ] || return
 
     yad --question --window-icon="$LOGO" \
-        --text="Install:\n  $(basename "$installer")\n\nInto container:\n  $jail\n\nThe installer will run inside the container.\nFollow its instructions in the terminal window." \
+        --text="Install:\n  $(basename "$installer")\n\nInto container:\n  $jail\n\nFollow the installer's instructions in the\nterminal window." \
         --button="Install:0" --button="Cancel:1" || return
 
     if [ -x "$INSTALL_CUSTOM" ]; then
@@ -590,61 +564,67 @@ cmd_attach_device() {
         return
     fi
 
-    # Enumerate block devices. FreeBSD names USB storage "daN".
-    devices=""
-    for dev in /dev/da* /dev/cd*; do
+    # Enumerate whole-disk block devices. Skip partitions.
+    set -- yad --list
+    set -- "$@" --column="Device"
+    any=0
+    for dev in /dev/da[0-9]* /dev/cd[0-9]*; do
         [ -b "$dev" ] || continue
-        name="$(basename "$dev")"
-        # Skip partitions (da0s1a); keep whole disks (da0).
-        case "$name" in
-            da[0-9]*[!0-9]*) continue ;;
+        base="$(basename "$dev")"
+        case "$base" in
             da[0-9]*) ;;
             cd[0-9]*) ;;
             *) continue ;;
         esac
-        devices="$devices$name
-"
+        set -- "$@" "$base"
+        any=1
     done
 
-    [ -n "$devices" ] || {
+    if [ "$any" -eq 0 ]; then
         yad --info --window-icon="$LOGO" \
             --text="No removable devices detected.\n\nPlug in a USB drive or insert a disc,\nthen try again." \
             --button="OK:0"
         return
-    }
+    fi
 
-    dev="$(printf '%s' "$devices" | yad --list \
+    set -- "$@" \
         --title="Attach Device" \
         --window-icon="$LOGO" \
-        --text="Select the device to attach to '$jail'.\nIt will be mounted read-only." \
-        --column="Device" \
-        --width=360 --height=280 \
+        --text="Attach a device to '$jail'.\nIt will be mounted read-only." \
+        --width=380 --height=300 \
         --no-headers \
         --print-column=1 \
-        --separator="" \
-        --button="Attach:10" --button="Cancel:0")" || return
+        --button="Attach:10" --button="Cancel:0"
 
+    rc=0
+    dev="$("$@")" || rc=$?
     dev="$(printf '%s' "$dev" | tr -d '\n\r')"
-    [ -n "$dev" ] || return
 
-    yad --question --window-icon="$LOGO" \
-        --text="Attach /dev/$dev to '$jail'?" \
-        --button="Attach:0" --button="Cancel:1" || return
+    case "$rc" in
+        0)  return ;;
+        10)
+            [ -n "$dev" ] || return
+            yad --question --window-icon="$LOGO" \
+                --text="Attach /dev/$dev to '$jail'?" \
+                --button="Attach:0" --button="Cancel:1" || return
 
-    if [ -x "$ATTACH_DEVICE" ]; then
-        if "$ATTACH_DEVICE" "$jail" "$dev"; then
-            yad --info --window-icon="$LOGO" \
-                --text="Device /dev/$dev attached to '$jail'.\nAccessible at /media/$dev inside the container." \
-                --button="OK:0"
-        else
-            yad --error --window-icon="$LOGO" \
-                --text="Failed to attach /dev/$dev.\nCheck that it contains a supported filesystem." \
-                --button="OK:0"
-        fi
-    else
-        yad --error --window-icon="$LOGO" \
-            --text="parish-attach-device not found." --button="OK:0"
-    fi
+            if [ -x "$ATTACH_DEVICE" ]; then
+                if "$ATTACH_DEVICE" "$jail" "$dev" >/tmp/.parish-attach.log 2>&1; then
+                    yad --info --window-icon="$LOGO" \
+                        --text="Attached /dev/$dev to '$jail'.\nAvailable at /media/$dev inside the container." \
+                        --button="OK:0"
+                else
+                    yad --error --window-icon="$LOGO" \
+                        --text="Failed to attach /dev/$dev.\n\n$(tail -3 /tmp/.parish-attach.log)" \
+                        --button="OK:0"
+                fi
+                rm -f /tmp/.parish-attach.log
+            else
+                yad --error --window-icon="$LOGO" \
+                    --text="parish-attach-device not found." --button="OK:0"
+            fi
+            ;;
+    esac
 }
 
 # =====================================================================
