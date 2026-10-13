@@ -218,7 +218,7 @@ fi
 # =====================================================================
 
 WALLPAPER_SRC="$REPO/host/wallpapers"
-WALLPAPER_DEST="/usr/local/share/backgrounds/"
+WALLPAPER_DEST="/usr/local/share/backgrounds/parishbsd"
 DEFAULT_WALLPAPER="$WALLPAPER_DEST/autumn_breeze.png"
 
 if [ -d "$WALLPAPER_SRC" ] && [ -n "$(ls -A "$WALLPAPER_SRC" 2>/dev/null)" ]; then
