@@ -31,14 +31,14 @@ env ASSUME_ALWAYS_YES=YES pkg install -y \
     lightdm-gtk-greeter \
     lightdm-gtk-greeter-settings \
     xfce4-session \
-    xfwm4 \
+    xfce4-wm \
     xfce4-panel \
-    xfdesktop \
+    xfce4-desktop \
     xfce4-settings \
     xfce4-appfinder \
     xfce4-terminal \
     xfce4-taskmanager \
-    xfce4-screenshooter \
+    xfce4-screenshooter-plugin \
     xfce4-power-manager \
     xfce4-notifyd \
     xfce4-clipman-plugin \
@@ -218,7 +218,7 @@ fi
 # =====================================================================
 
 WALLPAPER_SRC="$REPO/host/wallpapers"
-WALLPAPER_DEST="/usr/local/share/backgrounds/parishbsd"
+WALLPAPER_DEST="/usr/local/share/backgrounds/"
 DEFAULT_WALLPAPER="$WALLPAPER_DEST/autumn_breeze.png"
 
 if [ -d "$WALLPAPER_SRC" ] && [ -n "$(ls -A "$WALLPAPER_SRC" 2>/dev/null)" ]; then
