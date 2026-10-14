@@ -1,5 +1,5 @@
 #!/bin/sh
-# 30-create-jail.sh — create a jail instance from a personality.
+# 30-create-jail.sh - create a jail instance from a personality.
 #
 # Usage: sh 30-create-jail.sh <name> <personality>
 #   <name>          instance name (e.g. apps, browser, vault-churchcrm)
@@ -173,7 +173,7 @@ install_config() {
 				! grep -q 'parishbsd/provision.sh' "$rclocal" 2>/dev/null; then
 				cat > "$rclocal" <<'EOF'
 #!/bin/sh
-# ParishBSD provisioning hook — runs on every jail start.
+# ParishBSD provisioning hook - runs on every jail start.
 if [ -x /usr/local/etc/parishbsd/provision.sh ]; then
     /usr/local/etc/parishbsd/provision.sh
 fi
@@ -188,7 +188,7 @@ EOF
 	fi
 
 	install -d "$jailroot/usr/local/etc/parishbsd"
-	cat > "$jailroot/usr/local/etc/parishbsd/metata" <<EOF
+	cat > "$jailroot/usr/local/etc/parishbsd/metadata" <<EOF
 PERSONALITY=$personality
 TIER=$tier
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
