@@ -77,6 +77,7 @@ fi
 if zfs list "$container_ds" >/dev/null 2>&1; then
 	zfs destroy -rf "$container_ds" || err "failed to destroy $container_ds"
 	row "container" "destroyed"
+fi
 if [ -d "$jailroot" ]; then
 	chflags -R 0 "$jailroot" 2>/dev/null || true
 	rm -rf "$jailroot"
