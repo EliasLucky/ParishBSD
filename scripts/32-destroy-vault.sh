@@ -6,7 +6,7 @@
 # Does what 31-destroy-jail.sh does, plus destroys the encrypted ZFS
 # dataset holding the vault's data.
 #
-# ⚠ IRREVERSIBLE. Encrypted contents cannot be recovered after this,
+# IRREVERSIBLE. Encrypted contents cannot be recovered after this,
 #   even with the passphrase.
 #
 # Requires typing "destroy-<name>" as confirmation.
@@ -77,7 +77,7 @@ fi
 if zfs list "$container_ds" >/dev/null 2>&1; then
 	zfs destroy -rf "$container_ds" || err "failed to destroy $container_ds"
 	row "container" "destroyed"
-elif [ -d "$jailroot" ]; then
+if [ -d "$jailroot" ]; then
 	chflags -R 0 "$jailroot" 2>/dev/null || true
 	rm -rf "$jailroot"
 	row "jail root" "removed directory"
