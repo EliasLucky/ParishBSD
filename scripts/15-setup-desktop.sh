@@ -69,11 +69,16 @@ row "packages" "desktop core installed"
 
 log "Removing host-inappropriate packages"
 
-REMOVE_PKGS="thunar mousepad ristretto parole xfce4-dict"
+REMOVE_PKGS="mousepad ristretto parole xfce4-dict"
 
 for pkg in $REMOVE_PKGS; do
     if pkg info "$pkg" >/dev/null 2>&1; then
-        pkg delete -fy "$pkg" 2>/dev/null || true
+        rdeps="$(pkg info -r "$pkg" 2>/dev/null | grep -v "^${pkg}-" || true )"
+        if [ -n "$rdeps" ]; then
+            row "keep $pkg" "depended on by $(echo "$rdeps" | tr '\n' ' ')"
+            continue
+        fi 
+        pkg delete -y "$pkg" 2>/dev/null || true
         row "removed" "$pkg"
     fi
 done
