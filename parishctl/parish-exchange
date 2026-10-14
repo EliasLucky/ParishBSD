@@ -1,1 +1,85 @@
-a
+#!/bin/sh
+# parish-exchange  manage file transfer between jails via the exchange.
+#
+# Usage:
+#   parish-exchange list <jail>                    List files in a jail's exchange
+#   parish-exchange copy <src-jail> <file> <dst-jail>   Copy a file between jails
+#   parish-exchange move <src-jail> <file> <dst-jail>   Move (copy + delete) a file
+#   parish-exchange put <host-file> <dst-jail>     Copy a host file into a jail's exchange
+#   parish-exchange get <src-jail> <file> <dest>   Copy a jail file out to the host
+
+set -eu
+
+EXCHANGE_ROOT="/var/parishbsd/exchange"
+
+log() { printf '    %s\n' "$*"; }
+err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || err "must be run as root"
+
+cmd_list() {
+    jail="${1:?usage: parish-exchange list <jail>}"
+    dir="$EXCHANGE_ROOT/$jail"
+    [ -d "$dir" ] || err "no exchange directory for '$jail'"
+    ls -la "$dir" | tail -n +2
+}
+
+cmd_copy() {
+    src_jail="${1:?usage: parish-exchange copy <src> <file> <dst>}"
+    file="${2:?usage: parish-exchange copy <src> <file> <dst>}"
+    dst_jail="${3:?usage: parish-exchange copy <src> <file> <dst>}"
+
+    src="$EXCHANGE_ROOT/$src_jail/$file"
+    dst="$EXCHANGE_ROOT/$dst_jail/$file"
+
+    [ -f "$src" ] || err "file not found: $src"
+    [ -d "$EXCHANGE_ROOT/$dst_jail" ] || err "no exchange for '$dst_jail'"
+
+    # Prevent path traversal.
+    case "$file" in
+        *..*|/*) err "invalid file name: $file" ;;
+    esac
+
+    cp -a "$src" "$dst"
+    log "Copied '$file' from '$src_jail' to '$dst_jail'"
+}
+
+cmd_move() {
+    cmd_copy "$@"
+    src_jail="$1"; file="$2"
+    rm -f "$EXCHANGE_ROOT/$src_jail/$file"
+    log "Removed source copy"
+}
+
+cmd_put() {
+    host_file="${1:?usage: parish-exchange put <host-file> <dst-jail>}"
+    dst_jail="${2:?usage: parish-exchange put <host-file> <dst-jail>}"
+
+    [ -f "$host_file" ] || err "not a file: $host_file"
+    [ -d "$EXCHANGE_ROOT/$dst_jail" ] || err "no exchange for '$dst_jail'"
+
+    base="$(basename "$host_file")"
+    cp -a "$host_file" "$EXCHANGE_ROOT/$dst_jail/$base"
+    log "Put '$base' into '$dst_jail' exchange"
+}
+
+cmd_get() {
+    src_jail="${1:?usage: parish-exchange get <src-jail> <file> <dest>}"
+    file="${2:?usage: parish-exchange get <src-jail> <file> <dest>}"
+    dest="${3:?usage: parish-exchange get <src-jail> <file> <dest>}"
+
+    src="$EXCHANGE_ROOT/$src_jail/$file"
+    [ -f "$src" ] || err "file not found: $src"
+
+    cp -a "$src" "$dest"
+    log "Copied '$file' from '$src_jail' to $dest"
+}
+
+case "${1:-}" in
+    list) cmd_list "$@" ;;
+    copy) shift; cmd_copy "$@" ;;
+    move) shift; cmd_move "$@" ;;
+    put)  shift; cmd_put "$@" ;;
+    get)  shift; cmd_get "$@" ;;
+    *) err "usage: parish-exchange {list|copy|move|put|get} ..." ;;
+esac
