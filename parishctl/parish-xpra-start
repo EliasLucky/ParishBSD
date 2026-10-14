@@ -1,1 +1,28 @@
-1.2
+#!/bin/sh
+# parish-xpra-start  start Xpra inside a jail.
+set -eu
+
+jail="$1"
+display="${2:-:100}"
+socket_dir="/xpra"
+
+[ -n "$jail" ] || { echo "usage: $0 <jail> [display]" >&2; exit 1; }
+jls name 2>/dev/null | grep -qx "$jail" || { echo "jail '$jail' not running" >&2; exit 1; }
+
+if jexec "$jail" pgrep -qf "xpra.*$display" 2>/dev/null; then
+    echo "Xpra already running at $display in '$jail'"
+    exit 0
+fi
+
+jexec "$jail" xpra start "$display" \
+    --socket-dir="$socket_dir" \
+    --attach=no \
+    --daemon=yes \
+    --start=xterm \
+    >/dev/null 2>&1
+
+sleep 2
+
+jexec "$jail" pgrep -qf "xpra.*$display" 2>/dev/null \
+    && echo "Xpra started at $display in '$jail'" \
+    || { echo "Xpra failed to start" >&2; exit 1; }
