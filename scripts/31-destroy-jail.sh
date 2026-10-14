@@ -53,7 +53,7 @@ fi
 if [ "$has_container" -eq 1 ]; then
     zfs destroy -rf "$container_ds" || err "failed to destroy $container_ds"
     row "container" "destroyed"
-elif [ -n "$jailroot" ] && [ -d "$jailroot" ]; then
+if [ -n "$jailroot" ] && [ -d "$jailroot" ]; then
     chflags -R 0 "$jailroot" 2>/dev/null || true
     rm -rf "$jailroot"
     row "jail root" "removed directory"
