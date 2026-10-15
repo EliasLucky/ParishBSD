@@ -178,8 +178,19 @@ else
 	done
 fi
 
-# --- Summary ---
-log "Summary"
+# --- Exchange directory for cross-jail file transfer ---
+log "Setting up exchange directory"
+
+zfs list zroot/exchange >/dev/null 2>&1 || \
+    zfs create -o mountpoint=/var/parishbsd/exchange zroot/exchange
+
+EXCHANGE_ROOT="/var/parishsd/exchange"
+install -d "$EXCHANGE_ROOT"
+chmod 0755 "$EXCHANGE_ROOT"
+
+row "exchange" "$EXCHANGE_ROOT"
+
+log "Summary""
 
 printf '\n  Host:\n'
 printf '    uplink NIC:  %s\n' "$PARISHBSD_EXT_IF"

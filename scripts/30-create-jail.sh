@@ -125,6 +125,16 @@ EOF
 		fi
 		row "jail root" "$jailroot (extracted)"
 	fi
+
+	# --- Exchange directory subdirectory ---
+	exchange_subdir="/var/parishbsd/exchange/$name"
+	install -d "$exchange_subdir"
+	chmod 0770 "$exchange_subdir"
+
+	install -d "$jailroot/exchange"
+
+	fstab="$jailroot/../fstab.$name"
+	echo "/var/parishbsd/exchange/$name    $jailroot/exchange    nullfs    rw    0    0" >> "/etc/fstab.$name"
 }
 
 # --- Config, fstab, provision ---
@@ -193,6 +203,8 @@ PERSONALITY=$personality
 TIER=$tier
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
+	
+	chmod 0644 "$jailroot/usr/local/etc/parishbsd/metadata"
 	row "metadata" "personality=$personality"
 }
 
