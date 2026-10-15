@@ -130,6 +130,7 @@ EOF
 ensure_cache
 
 build_template "app"            "xpra"
+build_template "apps-compatible" "xpra wine wine-mono wine-gecko winetricks linux_base-c7 linux_libc6-shim"
 build_template "vault-postgres" "postgresql16-server postgresql16-client"
 build_template "vault-files"    ""
 
