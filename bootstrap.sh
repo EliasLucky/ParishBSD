@@ -29,6 +29,7 @@ export PARISHBSD_KEEP_SSHD PARISHBSD_CACHE PARISHBSD_FORCE PARISHBSD_SKIP_JAILS
 
 log()  { printf '\n==> %s\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
+row()  { printf '    %-24s %s\n' "$1" "$2"; }
 err()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 # Sanity checks
@@ -37,7 +38,6 @@ err()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 command -v pfctl >/dev/null 2>&1 || err "pfctl not found"
 command -v sysrc >/dev/null 2>&1 || err "sysrc not found"
 command -v zfs   >/dev/null 2>&1 || err "zfs not found (is the pool imported?)"
-
 [ -d "$REPO/scripts" ]       || err "scripts/ not found in $REPO"
 [ -d "$REPO/personalities" ] || err "personalities/ not found in $REPO"
 
@@ -80,6 +80,39 @@ sh "$REPO/scripts/05-ensure-prereqs.sh"
 log "Hardening the host"
 sh "$REPO/scripts/10-harden-host.sh"
 
+# === Desktop environment ===
+log "Setting up desktop environment"
+sh "$REPO/scripts/15-setup-desktop.sh"
+
+# === Polkit ===
+log "Setting up Polkit"
+env ASSUME_ALWAYS_YES=YES pkg install -y polkit lxqt-policykit || err "failed to install polkit packages"
+sysrc polkitd_enable=YES >/dev/null
+service polkitd start 2>/dev/null || true
+install -d /usr/local/etc/xdg/autostart
+cat > /usr/local/etc/xdg/autostart/lxqt-policykit-agent.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=PolicyKit Authentication Agent
+Exec=/usr/local/bin/lxqt-policykit-agent
+Terminal=false
+NoDisplay=true
+OnlyShowIn=XFCE;
+EOF
+chmod 0644 /usr/local/etc/xdg/autostart/lxqt-policykit-agent.desktop
+row "polkitd" "enabled"
+row "polkit agent" "configured for XFCE"
+
+# === USB notifications ===
+log "Configuring USB device notifications"
+install -d /usr/local/etc/devd
+if [ -f "$REPO/host/devd/parish-usb.conf" ]; then
+    install -m 0644 "$REPO/host/devd/parish-usb.conf" \
+        /usr/local/etc/devd/parish-usb.conf
+    service devd reload 2>/dev/null || true
+    row "devd" "installed"
+fi
+
 # --- Install host config files ---
 log "Installing host config files"
 install -d /etc/jail.conf.d
@@ -87,15 +120,35 @@ install -d /etc/rc.conf.d
 
 if [ -f "$REPO/host/etc/rc.conf.d/parishbsd" ]; then
 	install -m 0644 "$REPO/host/etc/rc.conf.d/parishbsd" /etc/rc.conf.d/parishbsd
+    row "rc.conf.d/parishbsd" "installed"
 else
 	note "no host/etc/rc.conf.d/parishbsd in repo - using sysrc only"
 fi
 
-# --- Instal parishctl ---
-if [ -f "$REPO/parishctl/parishctl" ]; then
-	install -m 0755 "$REPO/parishctl/parishctl" /usr/local/bin/parishctl
-	note "installed /usr/local/bin/parishctl"
-fi
+# === Exchange directory ===
+log "Setting up exchange directory"
+zfs list zroot/exchange >/dev/null 2>&1 || \
+    zfs create -o mountpoint=/var/parishbsd/exchange zroot/exchange
+EXCHANGE_ROOT="/var/parishbsd/exchange"
+install -d "$EXCHANGE_ROOT"
+chmod 0755 "$EXCHANGE_ROOT"
+chown root:wheel "$EXCHANGE_ROOT"
+
+# === Install parishctl and shell tools ===
+log "Installing parishctl and shell tools"
+install -d /usr/local/bin
+[ -f "$REPO/parishctl/parishctl" ] && \
+    install -m 0755 "$REPO/parishctl/parishctl" /usr/local/bin/parishctl
+
+# Also copy all parishctl subcommands that live in parishctl/
+for helper in parish-install-custom parish-attach-device parish-vault-files \
+              parish-xpra-start parish-xpra-attach parish-exchange \
+              parish-usb-notify parish-usb-attach; do
+    f="$REPO/parishctl/$helper"
+    [ -f "$f" ] || continue
+    install -m 0755 "$f" /usr/local/bin/
+    row "installed" "$helper"
+done
 
 
 # --- Vault locking infrastructure ---
@@ -137,20 +190,36 @@ note "enabled: jail, pf, pflog, gateway"
 log "Setting up network"
 sh "$REPO/scripts/20-network.sh"
 
+# === 13. Templates ===
 log "Building ZFS templates"
 sh "$REPO/scripts/25-setup-templates.sh"
 
-# --- Exchange directory for cross-jail file transfer ---
-log "Setting up exchange directory"
+# === 14. Install ParishBSD Qt6 apps ===
+log "Installing ParishBSD applications"
+QT_APPS="parish-compartments parish-about parish-welcome parish-station parish-appearance"
+for pkg in $QT_APPS; do
+    if pkg info "$pkg" >/dev/null 2>&1; then
+        row "$pkg" "already installed"
+    else
+        env ASSUME_ALWAYS_YES=YES pkg install -y "$pkg" 2>/dev/null \
+            && row "$pkg" "installed" \
+            || row "$pkg" "not in repo yet"
+    fi
+done
 
-zfs list zroot/exchange >/dev/null 2>&1 || \
-    zfs create -o mountpoint=/var/parishbsd/exchange zroot/exchange
+# === First-login autostart ===
+if [ -x /usr/local/bin/parish-welcome ]; then
+    install -d /etc/xdg/autostart
+    cat > /etc/xdg/autostart/parish-welcome.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=ParishBSD Welcome
+Exec=/usr/local/bin/parish-welcome --first-run
+Terminal=false
+OnlyShowIn=XFCE;
+EOF
+fi
 
-EXCHANGE_ROOT="/var/parishbsd/exchange"
-install -d "$EXCHANGE_ROOT"
-chmod 0755 "$EXCHANGE_ROOT"
-
-log "exchange $EXCHANGE_ROOT"
 # --- Create jails ---
 if [ "$PARISHBSD_SKIP_JAILS" = "1" ]; then
 	log "Creating jails - skipping jail creation (PARISHBSD_SKIP_JAILS=1)"
@@ -207,19 +276,3 @@ done
 
 printf '\n'
 log "Bootstrap complete."
-
-if [ "$PARISHBSD_SKIP_JAILS" != "1" ]; then
-	printf '\n  Next steps:\n'
-	printf '    - Start a jail:	service jail start apps\n'
-	printf '    - Enter a jail:	jexec apps /bin/sh\n'
-	printf '    - Attach Xpra:      xpra attach socket:///var/run/xpra/apps/100/socket\n'
-	printf '\n'
-fi
-
-if [ "$PARISHBSD_KEEP_SSHD" != "1" ]; then
-	printf '  Note: sshd is disabled. Administer via the console (or via\n'
-	printf '  Xpra once the desktop is set up). If you need SSH for\n'
-	printf '  development, re-run with PARISHBSD_KEEP_SSHD=1.\n\n'
-fi
-
-printf '  Reboot recommended to verify the system comes up correctly.\n\n'
