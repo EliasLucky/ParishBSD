@@ -131,7 +131,7 @@ ensure_cache
 
 build_template "app"            "xpra"
 build_template "vault-postgres" "postgresql16-server postgresql16-client"
-build_template "vault-files"    "openssh-portable"
+build_template "vault-files"    ""
 
 log "All templates built."
 log "Verify with: zfs list -t snapshot -r zroot/jails/templates"

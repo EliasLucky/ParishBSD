@@ -41,37 +41,3 @@ if [ ! -f "$SENTINEL" ]; then
 else
 	log "File vault already initialized"
 fi
-
-# Every-start work: users, sshd config, service startup are re-applied
-
-# Create the vault user if it doesn't exist
-if ! id vault >/dev/null 2>&1; then
-	log "Creating vault user"
-	pw useradd vault -d /var/vault-data -s /bin/sh -m 2>/dev/null || \
-		pw useradd vault -d /var/vault-data -s /bin/sh
-
-# Setup the SSH directory for the vault user
-SHH_DIR="/var/vault-data/.ssh"
-if [ ! -d "$SSH_DIR" ]; then
-	mkdir -p "$SSH_DIR"
-	touch "$SSH_DIR/authorized_keys"
-fi
-chown -R vault:vault "$SSH_DIR"
-chmod 0700 "$SSH_DIR"
-chmod 0600 "$SSH_DIR/authorized_keys"
-
-SSHD_CONF="/etc/ssh/sshd_config.vault"
-if [ ! -f "$SSHD_CONF" ]; then
-	cp /etc/ssh/shhd_config "$SSHD_CONF"
-	cat >> /etc/ssh/sshd_config.vault <<'EOF'
-# ParishBSD vault overrides
-PasswordAuthentication no
-PubkeyAuthentication yes
-PermitRootLogin no
-AllowUsers vault
-EOF
-fi
-
-sysrc sshd_enable=YES
-sysrc sshd_flags="-f /etc/ssh/shhd_config.vault"
-service sshd start || log "WARN: sshd start returned non-zero"
