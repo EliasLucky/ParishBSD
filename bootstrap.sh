@@ -82,7 +82,7 @@ sh "$REPO/scripts/10-harden-host.sh"
 
 # --- Install host config files ---
 log "Installing host config files"
-install -d /etc/jail.conf
+install -d /etc/jail.conf.d
 install -d /etc/rc.conf.d
 
 if [ -f "$REPO/host/etc/rc.conf.d/parishbsd" ]; then
@@ -97,17 +97,6 @@ if [ -f "$REPO/parishctl/parishctl" ]; then
 	note "installed /usr/local/bin/parishctl"
 fi
 
-if [ -f "$REPO/parishctl/parish-theme-picker" ]; then
-	install -m 0755 "$REPO/parishctl/parish-theme-picker" /usr/local/bin/
-	install -m 0644 "$REPO/host/applications/parish-theme-picker.desktop" /usr/local/share/applications/
-	note "installed /usr/locl/bin/parish-theme-picker"
-fi
-
-if [ -f "$REPO/parishctl/parish-about" ]; then
-	install -m 0755 "$REPO/parishctl/parish-about" /usr/local/bin/
-	install -m 0644 "$REPO/host/applications/parish-about.desktop" /usr/local/share/applications/
-	note "installed /usr/locl/bin/parish-about"
-fi
 
 # --- Vault locking infrastructure ---
 install -d /usr/local/etc/parishbsd
@@ -151,6 +140,17 @@ sh "$REPO/scripts/20-network.sh"
 log "Building ZFS templates"
 sh "$REPO/scripts/25-setup-templates.sh"
 
+# --- Exchange directory for cross-jail file transfer ---
+log "Setting up exchange directory"
+
+zfs list zroot/exchange >/dev/null 2>&1 || \
+    zfs create -o mountpoint=/var/parishbsd/exchange zroot/exchange
+
+EXCHANGE_ROOT="/var/parishbsd/exchange"
+install -d "$EXCHANGE_ROOT"
+chmod 0755 "$EXCHANGE_ROOT"
+
+log "exchange $EXCHANGE_ROOT"
 # --- Create jails ---
 if [ "$PARISHBSD_SKIP_JAILS" = "1" ]; then
 	log "Creating jails - skipping jail creation (PARISHBSD_SKIP_JAILS=1)"
@@ -178,24 +178,12 @@ else
 	done
 fi
 
-# --- Exchange directory for cross-jail file transfer ---
-log "Setting up exchange directory"
-
-zfs list zroot/exchange >/dev/null 2>&1 || \
-    zfs create -o mountpoint=/var/parishbsd/exchange zroot/exchange
-
-EXCHANGE_ROOT="/var/parishsd/exchange"
-install -d "$EXCHANGE_ROOT"
-chmod 0755 "$EXCHANGE_ROOT"
-
-row "exchange" "$EXCHANGE_ROOT"
-
-log "Summary""
+log "Summary"
 
 printf '\n  Host:\n'
 printf '    uplink NIC:  %s\n' "$PARISHBSD_EXT_IF"
 printf '    forwarding:  %s\n' "$(sysctl -n net.inet.ip.forwarding)"
-printf '    pf active:   %s\n' "$(pfctl -si 2>/dev/null | awk -F: '/^Status/ {print $2}' | tr -d ' ' || echo unknown)"
+printf '    pf active:   %s\n' "$(pfctl -si 2>/dev/null | awk -F: '/^Status:/ {print $2}' | tr -d ' ' || echo unknown)"
 printf '   bridge0:      %s\n' "$(ifconfig bridge0 2>/dev/null | awk '/inet /{print $2}' || echo 'not up')"
 printf '   sshd:         %s\n' "$(sysrc -n sshd_enable 2>/dev/null || echo unknown)"
 
@@ -232,10 +220,6 @@ if [ "$PARISHBSD_KEEP_SSHD" != "1" ]; then
 	printf '  Note: sshd is disabled. Administer via the console (or via\n'
 	printf '  Xpra once the desktop is set up). If you need SSH for\n'
 	printf '  development, re-run with PARISHBSD_KEEP_SSHD=1.\n\n'
-fi
-
-if [ "$PARISHBSD_EXT_IF" != "$(sysrc -n ifconfig_${PARISHBSD_EXT_IF} 2>/dev/null | awk '{print $1}' || true)" ]; then
-	: # quet;
 fi
 
 printf '  Reboot recommended to verify the system comes up correctly.\n\n'
