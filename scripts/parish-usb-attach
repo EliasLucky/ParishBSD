@@ -1,1 +1,31 @@
-#
+#!/bin/sh
+# parish-usb-attach  mount a USB device read-only into a jail.
+# Usage: parish-usb-attach <jail> <device>
+set -eu
+
+jail="$1"
+dev="$2"
+
+[ -n "$jail" ] && [ -n "$dev" ] || { echo "usage: $0 <jail> <device>" >&2; exit 1; }
+[ -b "/dev/$dev" ] || { echo "not a block device: /dev/$dev" >&2; exit 1; }
+
+jail_root="/usr/local/jails/app/$jail"
+[ -d "$jail_root" ] || { echo "no such jail: $jail" >&2; exit 1; }
+
+host_mnt="/var/parishbsd/media/$dev"
+jail_mnt="$jail_root/media/$dev"
+
+mkdir -p "$host_mnt" "$jail_mnt"
+
+fstype="$(fstyp "/dev/$dev" 2>/dev/null || echo unknown)"
+case "$fstype" in
+    msdosfs) mount -t msdosfs -o ro "/dev/$dev" "$host_mnt" ;;
+    ufs)     mount -t ufs -o ro "/dev/$dev" "$host_mnt" ;;
+    cd9660)  mount -t cd9660 -o ro "/dev/$dev" "$host_mnt" ;;
+    exfat)   mount -t exfat -o ro "/dev/$dev" "$host_mnt" ;;
+    ntfs)    mount -t ntfs -o ro "/dev/$dev" "$host_mnt" ;;
+    *) echo "unsupported filesystem: $fstype" >&2; exit 1 ;;
+esac
+
+mount_nullfs "$host_mnt" "$jail_mnt"
+echo "Attached /dev/$dev to '$jail' at /media/$dev (read-only)"
