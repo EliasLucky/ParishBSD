@@ -1,2 +1,345 @@
 #!/bin/sh
+# parish-apps  manage applications in a jail.
+#
+# Usage:
+#   parish-apps list <jail>
+#   parish-apps install <jail> <package>
+#   parish-apps install-file <jail> <file>
+#   parish-apps remove <jail> <package>
+#   parish-apps remove-custom <jail> <app-name>
+#   parish-apps upgrade <jail> [package]
 
+set -eu
+
+log() { printf '    %s\n' "$*"; }
+err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+# --- Validate jail ---
+require_jail() {
+    name="$1"
+    [ -n "$name" ] || err "jail name required"
+    jls name 2>/dev/null | grep -qx "$name" \
+        || err "jail '$name' is not running"
+}
+
+# --- exchange path for a jail ---
+exchange_dir() {
+    printf '/var/parishbsd/exchange/%s' "$1"
+}
+
+# =====================================================================
+# list
+# =====================================================================
+cmd_list() {
+    jail="${1:?usage: parish-apps list <jail>}"
+    require_jail "$jail"
+
+    # Native packages
+    pkg -j "$jail" info 2>/dev/null | awk '
+        {
+            name = $1
+            sub(/-[0-9].*$/, "", name)
+            version = $1
+            sub(/^.*-/, "", version)
+            $1 = ""
+            printf "native\t%s\t%s\t%s\n", name, version, $0
+        }
+    '
+
+    # Custom apps (JSON metadata)
+    meta_dir="/usr/local/jails/app/$jail/usr/local/etc/parishbsd/custom-apps"
+    if [ -d "$meta_dir" ]; then
+        for f in "$meta_dir"/*.json; do
+            [ -f "$f" ] || continue
+            name="$(awk -F'"' '/"name"/ {print $4; exit}' "$f")"
+            version="$(awk -F'"' '/"version"/ {print $4; exit}' "$f")"
+            method="$(awk -F'"' '/"install_method"/ {print $4; exit}' "$f")"
+            printf "custom\t%s\t%s\tinstalled via %s\n" "$name" "$version" "$method"
+        done
+    fi
+}
+
+# =====================================================================
+# install (from catalog)
+# =====================================================================
+cmd_install() {
+    jail="${1:?usage: parish-apps install <jail> <package>}"
+    package="${2:?usage: parish-apps install <jail> <package>}"
+    require_jail "$jail"
+
+    case "$package" in
+        *[!A-Za-z0-9._+-]*) err "invalid package name: $package" ;;
+    esac
+
+    log "Installing $package in $jail"
+    pkg -j "$jail" install -y "$package"
+}
+
+# =====================================================================
+# install-file
+# =====================================================================
+cmd_install_file() {
+    jail="${1:?usage: parish-apps install-file <jail> <file>}"
+    host_file="${2:?usage: parish-apps install-file <jail> <file>}"
+    require_jail "$jail"
+    [ -f "$host_file" ] || err "file not found: $host_file"
+
+    detected="$(/usr/local/parishbsd/parishctl/parish-detect-installer "$host_file")"
+    type_key="${detected%%:*}"
+    log "Detected: $detected"
+
+    case "$type_key" in
+        freebsd-pkg)              do_freebsd_pkg   "$jail" "$host_file" ;;
+        windows-installer)        do_win_installer "$jail" "$host_file" ;;
+        windows-portable-archive) do_win_portable  "$jail" "$host_file" ;;
+        linux-portable-archive)   do_linux_portable "$jail" "$host_file" ;;
+        linux-installer)          do_linux_installer "$jail" "$host_file" ;;
+        unsupported-*)
+            err "unsupported file type: $detected"
+            ;;
+        *)
+            err "cannot install this file type: $detected"
+            ;;
+    esac
+}
+
+# --- Copy helper used by all install paths ---
+copy_to_exchange() {
+    jail="$1"
+    file="$2"
+    base="$(basename "$file")"
+    dest_dir="$(exchange_dir "$jail")"
+    mkdir -p "$dest_dir"
+    cp -a "$file" "$dest_dir/$base"
+    chmod 0644 "$dest_dir/$base"
+    printf '%s' "$base"
+}
+
+# --- Cleanup called on EXIT ---
+cleanup_exchange() {
+    jail="$1"
+    base="$2"
+    [ -n "$base" ] || return 0
+    rm -f "$(exchange_dir "$jail")/$base" 2>/dev/null || true
+}
+
+# --- FreeBSD pkg ---
+do_freebsd_pkg() {
+    jail="$1"; host_file="$2"
+    base="$(copy_to_exchange "$jail" "$host_file")"
+    trap "cleanup_exchange '$jail' '$base'" EXIT INT TERM
+
+    log "Installing FreeBSD package $base"
+    jexec "$jail" pkg add "/exchange/$base"
+
+    cleanup_exchange "$jail" "$base"
+    trap - EXIT INT TERM
+    log "Package installed"
+}
+
+# --- Windows installer (.exe, .msi) ---
+do_win_installer() {
+    jail="$1"; host_file="$2"
+    base="$(copy_to_exchange "$jail" "$host_file")"
+    trap "cleanup_exchange '$jail' '$base'" EXIT INT TERM
+
+    log "Running Windows installer $base (Wine)"
+    # Wine needs a TTY for its wizard. Redirect through /dev/tty if
+    # running headless, or the caller's stdin if interactive.
+    jexec "$jail" wine "/exchange/$base"
+
+    cleanup_exchange "$jail" "$base"
+    trap - EXIT INT TERM
+    log "Installer finished"
+    log "If a launcher was created, it should appear after re-scanning."
+}
+
+# --- Windows portable archive ---
+do_win_portable() {
+    jail="$1"; host_file="$2"
+    base="$(copy_to_exchange "$jail" "$host_file")"
+    trap "cleanup_exchange '$jail' '$base'" EXIT INT TERM
+
+    stem="$(printf '%s' "$base" | sed 's/\.[^.]*$//')"
+    install_dir="/opt/parish-apps/$stem"
+
+    log "Extracting to $install_dir inside $jail"
+
+    jexec "$jail" sh -c "
+        set -eu
+        mkdir -p '$install_dir'
+        cd '$install_dir'
+        case '$base' in
+            *.zip)           unzip -q /exchange/'$base' ;;
+            *.tar.gz|*.tgz)  tar -xzf /exchange/'$base' ;;
+            *.tar.xz)        tar -xJf /exchange/'$base' ;;
+            *.tar.bz2)       tar -xjf /exchange/'$base' ;;
+            *) echo 'unsupported archive'; exit 1 ;;
+        esac
+    "
+
+    # Look for a main executable to create a launcher.
+    exe="$(jexec "$jail" find "$install_dir" -maxdepth 2 -name '*.exe' \
+            -type f 2>/dev/null | head -1)"
+
+    if [ -n "$exe" ]; then
+        jexec "$jail" sh -c "
+            mkdir -p /usr/local/share/applications
+            cat > '/usr/local/share/applications/parish-$stem.desktop' <<EOF
+[Desktop Entry]
+Type=Application
+Name=$stem
+Exec=wine '$exe'
+Terminal=false
+Categories=Application;
+EOF
+        "
+        log "Launcher created for $stem"
+    else
+        log "WARN: no .exe found in $install_dir"
+        log "Files are at $install_dir inside the jail."
+    fi
+
+    cleanup_exchange "$jail" "$base"
+    trap - EXIT INT TERM
+    log "Portable application installed at $install_dir"
+}
+
+# --- Linux portable archive ---
+do_linux_portable() {
+    jail="$1"; host_file="$2"
+    base="$(copy_to_exchange "$jail" "$host_file")"
+    trap "cleanup_exchange '$jail' '$base'" EXIT INT TERM
+
+    stem="$(printf '%s' "$base" | sed 's/\.[^.]*$//')"
+    install_dir="/opt/parish-apps/$stem"
+
+    log "Extracting to $install_dir inside $jail"
+
+    jexec "$jail" sh -c "
+        set -eu
+        mkdir -p '$install_dir'
+        cd '$install_dir'
+        case '$base' in
+            *.zip)           unzip -q /exchange/'$base' ;;
+            *.tar.gz|*.tgz)  tar -xzf /exchange/'$base' ;;
+            *.tar.xz)        tar -xJf /exchange/'$base' ;;
+            *.tar.bz2)       tar -xjf /exchange/'$base' ;;
+            *) echo 'unsupported archive'; exit 1 ;;
+        esac
+        chmod +x bin/* usr/bin/* 2>/dev/null || true
+    "
+
+    # Look for a main binary matching the app name.
+    binary="$(jexec "$jail" sh -c "
+        for candidate in '$install_dir/$stem' '$install_dir/bin/$stem' \
+                          '$install_dir/usr/bin/$stem'; do
+            [ -x \"\$candidate\" ] && echo \"\$candidate\" && break
+        done
+    ")"
+
+    if [ -n "$binary" ]; then
+        jexec "$jail" sh -c "
+            mkdir -p /usr/local/share/applications
+            cat > '/usr/local/share/applications/parish-$stem.desktop' <<EOF
+[Desktop Entry]
+Type=Application
+Name=$stem
+Exec=$binary
+Terminal=false
+Categories=Application;
+EOF
+        "
+        log "Launcher created for $stem"
+    fi
+
+    cleanup_exchange "$jail" "$base"
+    trap - EXIT INT TERM
+    log "Portable application installed at $install_dir"
+}
+
+# --- Linux installer ---
+do_linux_installer() {
+    jail="$1"; host_file="$2"
+    base="$(copy_to_exchange "$jail" "$host_file")"
+    trap "cleanup_exchange '$jail' '$base'" EXIT INT TERM
+
+    log "Running Linux installer $base"
+    jexec "$jail" /compat/linux/bin/sh "/exchange/$base"
+
+    cleanup_exchange "$jail" "$base"
+    trap - EXIT INT TERM
+    log "Installer finished"
+}
+
+# =====================================================================
+# remove
+# =====================================================================
+cmd_remove() {
+    jail="${1:?usage: parish-apps remove <jail> <package>}"
+    package="${2:?usage: parish-apps remove <jail> <package>}"
+    require_jail "$jail"
+
+    case "$package" in
+        *[!A-Za-z0-9._+-]*) err "invalid package name: $package" ;;
+    esac
+
+    log "Removing $package from $jail"
+    pkg -j "$jail" delete -y "$package"
+}
+
+# =====================================================================
+# remove-custom
+# =====================================================================
+cmd_remove_custom() {
+    jail="${1:?usage: parish-apps remove-custom <jail> <app-name>}"
+    app_name="${2:?usage: parish-apps remove-custom <jail> <app-name>}"
+
+    meta_dir="/usr/local/jails/app/$jail/usr/local/etc/parishbsd/custom-apps"
+    [ -d "$meta_dir" ] || err "no custom-apps directory in '$jail'"
+
+    found=0
+    for f in "$meta_dir"/*.json; do
+        [ -f "$f" ] || continue
+        name="$(awk -F'"' '/"name"/ {print $4; exit}' "$f")"
+        if [ "$name" = "$app_name" ]; then
+            rm -f "$f"
+            log "Removed metadata for $app_name"
+            found=1
+            break
+        fi
+    done
+    [ "$found" -eq 1 ] || err "no metadata found for '$app_name'"
+    log "Note: installed files under /opt/parish-apps/ were not removed."
+}
+
+# =====================================================================
+# upgrade
+# =====================================================================
+cmd_upgrade() {
+    jail="${1:?usage: parish-apps upgrade <jail> [package]}"
+    package="${2:-}"
+    require_jail "$jail"
+
+    if [ -n "$package" ]; then
+        case "$package" in
+            *[!A-Za-z0-9._+-]*) err "invalid package name: $package" ;;
+        esac
+        log "Upgrading $package in $jail"
+        pkg -j "$jail" upgrade -y "$package"
+    else
+        log "Upgrading all packages in $jail"
+        pkg -j "$jail" upgrade -y
+    fi
+}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+    list)          cmd_list "$@" ;;
+    install)       cmd_install "$@" ;;
+    install-file)  cmd_install_file "$@" ;;
+    remove)        cmd_remove "$@" ;;
+    remove-custom) cmd_remove_custom "$@" ;;
+    upgrade)       cmd_upgrade "$@" ;;
+    *) err "usage: parish-apps {list|install|install-file|remove|remove-custom|upgrade} ..." ;;
+esac
