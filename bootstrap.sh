@@ -242,7 +242,7 @@ else
 
 		note "creating jail '$name' from personality '$personality'"
 		sh "$REPO/scripts/30-create-jail.sh" "$name" "$personality" || {
-			note "WARNL failed to create '$name' - continuing"
+			note "WARN: failed to create '$name' - continuing"
 		}
 	done
 fi

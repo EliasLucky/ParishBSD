@@ -8,7 +8,7 @@ set -eu
 FIFO="/var/run/parishbsd/usb-events"
 mkdir -p "$(dirname "$FIFO")" 2>/dev/null || true
 
-case "$1" in
+case "${1:-}" in
     attach|detach) action="$1" ;;
     *) exit 0 ;;
 esac
