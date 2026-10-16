@@ -439,6 +439,41 @@ cmd_schedules() {
     done
 }
 
+cmd_apps() {
+    sub="${1:-}"; shift || true
+    case "$sub" in
+        list)          exec "$PARISHBSD_ROOT/parishctl/parish-apps" list "$@" ;;
+        install)       exec "$PARISHBSD_ROOT/parishctl/parish-apps" install "$@" ;;
+        install-file)  exec "$PARISHBSD_ROOT/parishctl/parish-apps" install-file "$@" ;;
+        remove)        exec "$PARISHBSD_ROOT/parishctl/parish-apps" remove "$@" ;;
+        remove-custom) exec "$PARISHBSD_ROOT/parishctl/parish-apps" remove-custom "$@" ;;
+        upgrade)       exec "$PARISHBSD_ROOT/parishctl/parish-apps" upgrade "$@" ;;
+        *) die "usage: parishctl apps {list|install|install-file|remove|remove-custom|upgrade} ..." ;;
+    esac
+}
+
+cmd_detect() {
+    exec "$PARISHBSD_ROOT/parishctl/parish-detect-installer" "$@"
+}
+
+cmd_usb() {
+    sub="${1:-}"; shift || true
+    case "$sub" in
+        attach) exec "$PARISHBSD_ROOT/parishctl/parish-usb-attach" "$@" ;;
+        detach) exec "$PARISHBSD_ROOT/parishctl/parish-usb-detach" "$@" ;;
+        list)   exec "$PARISHBSD_ROOT/parishctl/parish-usb-list" "$@" ;;
+        *) die "usage: parishctl usb {attach|detach|list} ..." ;;
+    esac
+}
+
+cmd_xpra() {
+    sub="${1:-}"; shift || true
+    case "$sub" in
+        start)  exec "$PARISHBSD_ROOT/parishctl/parish-xpra-start" "$@" ;;
+        attach) exec "$PARISHBSD_ROOT/parishctl/parish-xpra-attach" "$@" ;;
+        *) die "usage: parishctl xpra {start|attach} ..." ;;
+    esac
+}
 cmd_help() {
     cat <<'EOF'
 parishctl - manage ParishBSD containers
@@ -506,6 +541,10 @@ case "$cmd" in
     schedule-lock)               cmd_schedule_lock "$@" ;;
     unschedule-lock)             cmd_unschedule_lock "$@" ;;
     schedules)                   cmd_schedules ;;
+    apps)   shift; cmd_apps "$@" ;;
+    detect) shift; cmd_detect "$@" ;;
+    usb)    shift; cmd_usb "$@" ;;
+    xpra)   shift; cmd_xpra "$@" ;;
     help|-h|--help)              cmd_help ;;
     version|-v|--version)        cmd_version ;;
     *)                           err "unknown command: $cmd (try 'parishctl help')" ;;
