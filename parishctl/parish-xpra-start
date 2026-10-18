@@ -1,28 +1,61 @@
 #!/bin/sh
-# parish-xpra-start  start Xpra inside a jail.
+# parish-xpra  start or attach Xpra for a jail.
+#
+# Usage:
+#   parish-xpra start  <jail> [<display>]
+#   parish-xpra attach <jail> [<display>]
 set -eu
 
-jail="$1"
-display="${2:-:100}"
-socket_dir="/xpra"
+cmd="${1:-}"; shift || true
+jail="${1:-}"; shift || true
+display="${1:-:100}"
 
-[ -n "$jail" ] || { echo "usage: $0 <jail> [display]" >&2; exit 1; }
-jls name 2>/dev/null | grep -qx "$jail" || { echo "jail '$jail' not running" >&2; exit 1; }
+[ -n "$cmd" ] && [ -n "$jail" ] || {
+    echo "usage: parish-xpra {start|attach} <jail> [<display>]" >&2
+    exit 1
+}
 
-if jexec "$jail" pgrep -qf "xpra.*$display" 2>/dev/null; then
-    echo "Xpra already running at $display in '$jail'"
-    exit 0
-fi
+disp_num="${display#:}"
+socket="/var/run/xpra/$jail/$disp_num/socket"
 
-jexec "$jail" xpra start "$display" \
-    --socket-dir="$socket_dir" \
-    --attach=no \
-    --daemon=yes \
-    --start=xterm \
-    >/dev/null 2>&1
+case "$cmd" in
+    start)
+        jls name 2>/dev/null | grep -qx "$jail" || {
+            echo "jail '$jail' not running" >&2; exit 1
+        }
+        if jexec "$jail" pgrep -qf "xpra.*$display" 2>/dev/null; then
+            echo "Xpra already running at $display in '$jail'"
+            exit 0
+        fi
+        jexec "$jail" xpra start "$display" \
+            --socket-dir=/xpra --attach=no --daemon=yes --start=xterm \
+            >/dev/null 2>&1
+        sleep 2
+        jexec "$jail" pgrep -qf "xpra.*$display" 2>/dev/null \
+            && echo "Xpra started at $display in '$jail'" \
+            || { echo "Xpra failed to start" >&2; exit 1; }
+        ;;
+    attach)
+        [ -S "$socket" ] || { echo "no socket at $socket" >&2; exit 1; }
 
-sleep 2
+        # Determine colored border by tier.
+        personality="$(awk -F= '/^PERSONALITY=/{print $2}' \
+            /usr/local/jails/app/$jail/usr/local/etc/parishbsd/metadata 2>/dev/null || echo '')"
+        case "$personality" in
+            vault-*)         colour="#d4af37" ;;
+            apps-compatible) colour="#8b5cf6" ;;
+            *)               colour="#3b82f6" ;;
+        esac
 
-jexec "$jail" pgrep -qf "xpra.*$display" 2>/dev/null \
-    && echo "Xpra started at $display in '$jail'" \
-    || { echo "Xpra failed to start" >&2; exit 1; }
+        shift_display=()
+        [ $# -gt 0 ] && shift_display=(--start="$*")
+
+        exec xpra attach "socket://$socket" \
+            --window-border="$colour" \
+            --title="$jail" "${shift_display[@]}"
+        ;;
+    *)
+        echo "usage: parish-xpra {start|attach} <jail> [<display>]" >&2
+        exit 1
+        ;;
+esac
