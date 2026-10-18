@@ -1,1 +1,99 @@
-P
+#!/bin/sh
+# parish-app-create-launcher  create .desktop launchers for an app
+# or a native FreeBSD package.
+#
+# Called by:
+#   - parish-apps install-file (after successful install)
+#   - parish-apps pkg-launcher (from GUI)
+#   - parish-apps create-launcher (from CLI)
+#
+# Runs as the invoking user (writes to $HOME). No root needed.
+
+set -eu
+
+jail="${1:?usage: parish-app-create-launcher <jail> <name> [menu|desktop|both]}"
+name="${2:?usage: parish-app-create-launcher <jail> <name> [where]}"
+where="${3:-menu}"
+
+apps_dir="$HOME/.local/share/applications"
+desk_dir="$HOME/Desktop"
+mkdir -p "$apps_dir" "$desk_dir"
+
+safe_name="$(printf '%s' "$name" | sed 's/[^A-Za-z0-9._-]/_/g')"
+
+create_one() {
+    display="$1"; command="$2"; icon="$3"; slug="$4"
+    entry="[Desktop Entry]
+Type=Application
+Name=$display
+Comment=ParishBSD application in compartment '$jail'
+Exec=/usr/local/parishbsd/parishctl/parish-jail-run $jail $command
+Icon=$icon
+Terminal=false
+Categories=Application;
+StartupNotify=true"
+
+    if [ "$where" = "menu" ] || [ "$where" = "both" ]; then
+        target="$apps_dir/parish-$jail-$slug.desktop"
+        printf '%s\n' "$entry" > "$target"
+        chmod 0755 "$target"
+        printf 'Created: %s\n' "$target"
+    fi
+    if [ "$where" = "desktop" ] || [ "$where" = "both" ]; then
+        target="$desk_dir/parish-$jail-$slug.desktop"
+        printf '%s\n' "$entry" > "$target"
+        chmod 0755 "$target"
+        printf 'Created: %s\n' "$target"
+    fi
+}
+
+# Case 1: custom app  metadata exists.
+meta_dir="/usr/local/jails/app/$jail/usr/local/etc/parishbsd/custom-apps"
+meta_file=""
+for f in "$meta_dir"/*.conf; do
+    [ -f "$f" ] || continue
+    n="$(awk -F'"' '/^NAME=/{print $2; exit}' "$f")"
+    if [ "$n" = "$name" ]; then meta_file="$f"; break; fi
+done
+
+if [ -n "$meta_file" ]; then
+    # shellcheck disable=SC1090
+    . "$meta_file"
+    create_one "${NAME:-$name}" \
+               "${LAUNCHER_COMMAND:?}" \
+               "${ICON_NAME:-parish-container-app}" \
+               "$safe_name"
+    update-desktop-database "$apps_dir" 2>/dev/null || true
+    exit 0
+fi
+
+# Case 2: native package  discover .desktop files.
+found=0
+for d in $(jexec "$jail" sh -c "
+    for f in /usr/local/share/applications/*.desktop; do
+        [ -f \"\$f\" ] || continue
+        bin=\$(grep '^Exec=' \"\$f\" | head -1 | cut -d= -f2 | awk '{print \$1}')
+        [ -n \"\$bin\" ] || continue
+        owner=\$(pkg which -q \"\$bin\" 2>/dev/null | awk '{print \$1}')
+        [ \"\$owner\" = '$name' ] && echo \"\$f\"
+    done
+"); do
+    display="$(jexec "$jail" sh -c "grep '^Name=' '$d' | head -1 | cut -d= -f2-")"
+    command="$(jexec "$jail" sh -c "grep '^Exec=' '$d' | head -1 | cut -d= -f2-")"
+    icon="$(jexec "$jail" sh -c "grep '^Icon=' '$d' | head -1 | cut -d= -f2-")"
+    [ -n "$display" ] || display="$name"
+    [ -n "$command" ] || command="$name"
+    [ -n "$icon" ]    || icon="application-x-executable"
+
+    slug="$(basename "$d" .desktop | sed 's/[^A-Za-z0-9._-]/_/g')"
+    create_one "$display" "$command" "$icon" "$safe_name-$slug"
+    found=$((found + 1))
+done
+
+[ "$found" -gt 0 ] || {
+    echo "No .desktop files found for package '$name' in '$jail'" >&2
+    exit 1
+}
+
+update-desktop-database "$apps_dir" 2>/dev/null || true
+echo "Created $found launcher(s) for '$name'"
