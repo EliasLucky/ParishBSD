@@ -467,20 +467,17 @@ cmd_detect() {
 }
 
 cmd_usb() {
-    sub="${1:-}"; shift || true
+    sub="${1:?usage: parishctl usb {attach|detach|list} ...}"
     case "$sub" in
-        attach) exec "$PARISHBSD_ROOT/parishctl/parish-usb-attach" "$@" ;;
-        detach) exec "$PARISHBSD_ROOT/parishctl/parish-usb-detach" "$@" ;;
-        list)   exec "$PARISHBSD_ROOT/parishctl/parish-usb-list" "$@" ;;
+        attach|detach|list) exec "$PARISHBSD_ROOT/parishctl/parish-usb" "$@" ;;
         *) err "usage: parishctl usb {attach|detach|list} ..." ;;
     esac
 }
 
 cmd_xpra() {
-    sub="${1:-}"; shift || true
+    sub="${1:?usage: parishctl xpra {start|attach} ...}"
     case "$sub" in
-        start)  exec "$PARISHBSD_ROOT/parishctl/parish-xpra-start" "$@" ;;
-        attach) exec "$PARISHBSD_ROOT/parishctl/parish-xpra-attach" "$@" ;;
+        start|attach) exec "$PARISHBSD_ROOT/parishctl/parish-xpra" "$@" ;;
         *) err "usage: parishctl xpra {start|attach} ..." ;;
     esac
 }
