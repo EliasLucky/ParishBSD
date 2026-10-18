@@ -16,9 +16,14 @@ log() { printf '    %s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || err "must be run as root"
-
+validate_name() {
+    case "$1" in
+        *..*|/*|'') err "invalid name: $1" ;;
+    esac
+}
 cmd_list() {
     jail="${1:?usage: parish-exchange list <jail>}"
+    validate_name "$jail"
     dir="$EXCHANGE_ROOT/$jail"
     [ -d "$dir" ] || err "no exchange directory for '$jail'"
     ls -la "$dir" | tail -n +2
@@ -28,17 +33,15 @@ cmd_copy() {
     src_jail="${1:?usage: parish-exchange copy <src> <file> <dst>}"
     file="${2:?usage: parish-exchange copy <src> <file> <dst>}"
     dst_jail="${3:?usage: parish-exchange copy <src> <file> <dst>}"
+    validate_name "$src_jail"
+    validate_name "$file"
+    validate_name "$dst_jail"
 
     src="$EXCHANGE_ROOT/$src_jail/$file"
     dst="$EXCHANGE_ROOT/$dst_jail/$file"
 
     [ -f "$src" ] || err "file not found: $src"
     [ -d "$EXCHANGE_ROOT/$dst_jail" ] || err "no exchange for '$dst_jail'"
-
-    # Prevent path traversal.
-    case "$file" in
-        *..*|/*) err "invalid file name: $file" ;;
-    esac
 
     cp -a "$src" "$dst"
     log "Copied '$file' from '$src_jail' to '$dst_jail'"
@@ -54,6 +57,8 @@ cmd_move() {
 cmd_put() {
     host_file="${1:?usage: parish-exchange put <host-file> <dst-jail>}"
     dst_jail="${2:?usage: parish-exchange put <host-file> <dst-jail>}"
+    validate_name "$host_file"
+    validate_name "$dst_jail"
 
     [ -f "$host_file" ] || err "not a file: $host_file"
     [ -d "$EXCHANGE_ROOT/$dst_jail" ] || err "no exchange for '$dst_jail'"
@@ -67,6 +72,9 @@ cmd_get() {
     src_jail="${1:?usage: parish-exchange get <src-jail> <file> <dest>}"
     file="${2:?usage: parish-exchange get <src-jail> <file> <dest>}"
     dest="${3:?usage: parish-exchange get <src-jail> <file> <dest>}"
+    validate_name "$src_jail"
+    validate_name "$file"
+    validate_name "$dest"
 
     src="$EXCHANGE_ROOT/$src_jail/$file"
     [ -f "$src" ] || err "file not found: $src"
