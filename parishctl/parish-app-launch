@@ -1,1 +1,41 @@
-E
+#!/bin/sh
+# parish-app-launch  launch a custom application inside a jail.
+#
+# Called by .desktop launchers. Reads the app's .conf metadata,
+# starts Xpra if needed, and runs the app via Xpra.
+
+set -eu
+
+jail="${1:?usage: parish-app-launch <jail> <app-name>}"
+app_name="${2:?usage: parish-app-launch <jail> <app-name>}"
+
+BIN_DIR="/usr/local/parishbsd/parishctl"
+
+meta_dir="/usr/local/jails/app/$jail/usr/local/etc/parishbsd/custom-apps"
+
+# Find the .conf for this app name.
+meta_file=""
+for f in "$meta_dir"/*.conf; do
+    [ -f "$f" ] || continue
+    name="$(awk -F'"' '/^NAME=/{print $2; exit}' "$f")"
+    if [ "$name" = "$app_name" ]; then
+        meta_file="$f"
+        break
+    fi
+done
+
+[ -n "$meta_file" ] || {
+    echo "ERROR: no metadata for '$app_name' in '$jail'" >&2
+    exit 1
+}
+
+# shellcheck disable=SC1090
+. "$meta_file"
+
+[ -n "${LAUNCHER_COMMAND:-}" ] || {
+    echo "ERROR: LAUNCHER_COMMAND empty in $meta_file" >&2
+    exit 1
+}
+
+# shellcheck disable=SC2086
+exec "$BIN_DIR/parish-jail-run" "$jail" $LAUNCHER_COMMAND
