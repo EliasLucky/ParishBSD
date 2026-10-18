@@ -1,5 +1,5 @@
 #!/bin/sh
-# parish-apps — manage applications in a jail.
+# parish-apps  manage applications in a jail.
 #
 # Usage:
 #   parish-apps list <jail>
@@ -35,7 +35,7 @@ exchange_dir() {
 }
 
 # =====================================================================
-# Metadata — the .conf format that parish-app-launch and the GUI read
+# Metadata  the .conf format that parish-app-launch and the GUI read
 # =====================================================================
 
 write_metadata() {
