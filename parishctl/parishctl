@@ -266,7 +266,10 @@ EOF
         sh "$SCRIPTS/27-unlock-vault.sh" "$name" \
             || err "failed to start container"
     else
-        service jail start "$name" >/dev/null 2>&1 || true
+        if ! service jail start "$name" >/dev/null 2>&1; then
+            warn "container '$name' created but failed to start"
+            warn "check: service jail start $name"
+        fi
     fi
 
     info ""
@@ -382,13 +385,13 @@ cmd_schedule_lock() {
     name="${1:?usage: parishctl schedule-lock <vault> <HH:MM>}"
     time_in="${2:?usage: parishctl schedule-lock <vault> <HH:MM>}"
 
-    container_path "$name" >/dev/null 2>&1 || die "no container named '$name'"
+    container_path "$name" >/dev/null 2>&1 || err "no container named '$name'"
     personality="$(container_personality "$(container_path "$name")")"
-    is_vault_personality "$personality" || die "'$name' is not a vault"
+    is_vault_personality "$personality" || err "'$name' is not a vault"
 
     case "$time_in" in
         [0-2][0-9]:[0-5][0-9]) : ;;
-        *) die "time must be in 24-hour HH:MM format (e.g. 17:30)" ;;
+        *) err "time must be in 24-hour HH:MM format (e.g. 17:30)" ;;
     esac
 
     cfg="/usr/local/etc/parishbsd/lock-schedules"
@@ -442,16 +445,23 @@ cmd_schedules() {
 cmd_apps() {
     sub="${1:-}"; shift || true
     case "$sub" in
-        list)          exec "$PARISHBSD_ROOT/parishctl/parish-apps" list "$@" ;;
-        install)       exec "$PARISHBSD_ROOT/parishctl/parish-apps" install "$@" ;;
-        install-file)  exec "$PARISHBSD_ROOT/parishctl/parish-apps" install-file "$@" ;;
-        remove)        exec "$PARISHBSD_ROOT/parishctl/parish-apps" remove "$@" ;;
-        remove-custom) exec "$PARISHBSD_ROOT/parishctl/parish-apps" remove-custom "$@" ;;
-        upgrade)       exec "$PARISHBSD_ROOT/parishctl/parish-apps" upgrade "$@" ;;
-        *) die "usage: parishctl apps {list|install|install-file|remove|remove-custom|upgrade} ..." ;;
+        list)            exec "$PARISHBSD_ROOT/parishctl/parish-apps" list "$@" ;;
+        install)         exec "$PARISHBSD_ROOT/parishctl/parish-apps" install "$@" ;;
+        install-file)    exec "$PARISHBSD_ROOT/parishctl/parish-apps" install-file "$@" ;;
+        remove)          exec "$PARISHBSD_ROOT/parishctl/parish-apps" remove "$@" ;;
+        remove-custom)   exec "$PARISHBSD_ROOT/parishctl/parish-apps" remove-custom "$@" ;;
+        upgrade)         exec "$PARISHBSD_ROOT/parishctl/parish-apps" upgrade "$@" ;;
+        set-launcher)    exec "$PARISHBSD_ROOT/parishctl/parish-apps" set-launcher "$@" ;;
+        launch)          exec "$PARISHBSD_ROOT/parishctl/parish-apps" launch "$@" ;;
+        create-launcher) exec "$PARISHBSD_ROOT/parishctl/parish-apps" create-launcher "$@" ;;
+        pkg-launcher)    exec "$PARISHBSD_ROOT/parishctl/parish-apps" pkg-launcher "$@" ;;
+        *) err "usage: parishctl apps {list|install|install-file|remove|remove-custom|upgrade|set-launcher|launch|create-launcher|pkg-launcher} ..." ;;
     esac
 }
-
+cmd_vault_files() {
+    name="${1:?usage: parishctl vault-files <name>}"
+    exec "$PARISHBSD_ROOT/parishctl/parish-vault-files" "$name"
+}
 cmd_detect() {
     exec "$PARISHBSD_ROOT/parishctl/parish-detect-installer" "$@"
 }
@@ -462,7 +472,7 @@ cmd_usb() {
         attach) exec "$PARISHBSD_ROOT/parishctl/parish-usb-attach" "$@" ;;
         detach) exec "$PARISHBSD_ROOT/parishctl/parish-usb-detach" "$@" ;;
         list)   exec "$PARISHBSD_ROOT/parishctl/parish-usb-list" "$@" ;;
-        *) die "usage: parishctl usb {attach|detach|list} ..." ;;
+        *) err "usage: parishctl usb {attach|detach|list} ..." ;;
     esac
 }
 
@@ -471,7 +481,7 @@ cmd_xpra() {
     case "$sub" in
         start)  exec "$PARISHBSD_ROOT/parishctl/parish-xpra-start" "$@" ;;
         attach) exec "$PARISHBSD_ROOT/parishctl/parish-xpra-attach" "$@" ;;
-        *) die "usage: parishctl xpra {start|attach} ..." ;;
+        *) err "usage: parishctl xpra {start|attach} ..." ;;
     esac
 }
 cmd_help() {
@@ -510,7 +520,24 @@ SCHEDULES
   parishctl schedule-lock <vault> <HH:MM>   Lock vault daily at HH:MM
   parishctl unschedule-lock <vault>         Remove a scheduled lock
   parishctl schedules                       Show all scheduled locks
+  
+APPLICATIONS
+  parishctl apps list <jail>          List installed apps
+  parishctl apps install <jail> <pkg> Install a FreeBSD package
+  parishctl apps install-file <jail> <file> Install from a file
+  parishctl apps upgrade <jail>       Upgrade packages
+  parishctl detect <file>             Identify a file's type
 
+USB
+  parishctl usb list                  List attached devices
+  parishctl usb attach <jail> <dev>   Attach a device to a jail
+  parishctl usb detach <jail> <dev>   Detach a device from a jail
+
+DISPLAY
+  parishctl xpra start <jail>         Start Xpra in a jail
+  parishctl xpra attach <jail>        Attach a display client
+  parishctl vault-files <name>        Open a vault's file manager
+  
 OTHER
   parishctl help                    Show this message
   parishctl version                 Show version
@@ -520,7 +547,8 @@ EOF
 }
 
 cmd_version() {
-    printf 'parishctl (ParishBSD) 0.1\n'
+    v="$(cat "$PARISHBSD_ROOT/VERSION" 2>/dev/null || echo "unknown")"
+    printf 'parishctl (ParishBSD) %s\n' "$v"
 }
 
 # Dispatch
@@ -541,10 +569,11 @@ case "$cmd" in
     schedule-lock)               cmd_schedule_lock "$@" ;;
     unschedule-lock)             cmd_unschedule_lock "$@" ;;
     schedules)                   cmd_schedules ;;
-    apps)   shift; cmd_apps "$@" ;;
-    detect) shift; cmd_detect "$@" ;;
-    usb)    shift; cmd_usb "$@" ;;
-    xpra)   shift; cmd_xpra "$@" ;;
+    apps)   cmd_apps "$@" ;;
+    detect) cmd_detect "$@" ;;
+    usb)    cmd_usb "$@" ;;
+    xpra)   cmd_xpra "$@" ;;
+    vault-files)  cmd_vault_files "$@" ;;
     help|-h|--help)              cmd_help ;;
     version|-v|--version)        cmd_version ;;
     *)                           err "unknown command: $cmd (try 'parishctl help')" ;;
