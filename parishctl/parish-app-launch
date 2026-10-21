@@ -6,36 +6,42 @@
 
 set -eu
 
-jail="${1:?usage: parish-app-launch <jail> <app-name>}"
-app_name="${2:?usage: parish-app-launch <jail> <app-name>}"
+jail="${1:?usage: parish-app-launch <jail> <app>}"
+app_name="${2:?usage: parish-app-launch <jail> <app>}"
 
 BIN_DIR="/usr/local/parishbsd/parishctl"
+
+# H1
+validate_name() {
+    [ -n "$1" ] || { echo "ERROR: empty name" >&2; exit 1; }
+    printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' \
+        || { echo "ERROR: invalid name: '$1'" >&2; exit 1; }
+}
+validate_name "$jail"
+validate_name "$app_name"
 
 meta_dir="/usr/local/jails/app/$jail/usr/local/etc/parishbsd/custom-apps"
 
 # Find the .conf for this app name.
 meta_file=""
-for f in "$meta_dir"/*.conf; do
-    [ -f "$f" ] || continue
-    name="$(awk -F'"' '/^NAME=/{print $2; exit}' "$f")"
-    if [ "$name" = "$app_name" ]; then
-        meta_file="$f"
-        break
-    fi
-done
+if [ -d "$meta_dir" ]; then
+    for f in "$meta_dir"/*.conf; do
+        [ -f "$f" ] || continue
+        [ ! -L "$f" ] || continue   # H4
+        name="$(awk -F'"' '/^NAME=/{print $2; exit}' "$f")"
+        if [ "$name" = "$app_name" ]; then
+            meta_file="$f"
+            break
+        fi
+    done
+fi
 
-[ -n "$meta_file" ] || {
-    echo "ERROR: no metadata for '$app_name' in '$jail'" >&2
-    exit 1
-}
+[ -n "$meta_file" ] || { echo "ERROR: no metadata for '$app_name' in '$jail'" >&2; exit 1; }
 
-# shellcheck disable=SC1090
-. "$meta_file"
+LAUNCHER_COMMAND="$(awk -F'"' '/^LAUNCHER_COMMAND=/{print $2; exit}' "$meta_file")"
+[ -n "$LAUNCHER_COMMAND" ] || { echo "ERROR: LAUNCHER_COMMAND empty in $meta_file" >&2; exit 1; }
 
-[ -n "${LAUNCHER_COMMAND:-}" ] || {
-    echo "ERROR: LAUNCHER_COMMAND empty in $meta_file" >&2
-    exit 1
-}
+# split the command into argv safely. assume it is a simple whitespace-separated command line.
+set -- $LAUNCHER_COMMAND
 
-# shellcheck disable=SC2086
-exec "$BIN_DIR/parish-jail-run" "$jail" $LAUNCHER_COMMAND
+exec "$BIN_DIR/parish-jail-run" "$jail" "$@"
