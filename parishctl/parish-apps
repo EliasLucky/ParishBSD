@@ -20,18 +20,42 @@ JAILS_DIR="/usr/local/jails"
 EXCHANGE_ROOT="/var/parishbsd/exchange"
 BIN_DIR="/usr/local/parishbsd/parishctl"
 
-log() { printf '    %s\n' "$*"; }
+log() { printf ' %s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-require_jail() {
-    name="$1"
-    [ -n "$name" ] || err "jail name required"
-    jls name 2>/dev/null | grep -qx "$name" \
-        || err "jail '$name' is not running"
+# H1
+validate_jail_name() {
+    [ -n "$1" ] || err "jail name required"
+    printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' \
+        || err "invalid jail name: '$1'"
 }
 
-exchange_dir() {
-    printf '%s/%s' "$EXCHANGE_ROOT" "$1"
+require_jail() {
+    validate_jail_name "$1"
+    jls name 2>/dev/null | grep -qx "$1" || err "jail '$1' is not running"
+}
+
+# H2
+validate_package_name() {
+    printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9._+-]+$' \
+        || err "invalid package name: '$1'"
+}
+
+# H3
+canonical_path() {
+    local path="$1" real
+    real=$(realpath "$path" 2>/dev/null) || err "cannot resolve: $path"
+    [ "$real" = "$path" ] || err "not canonical: $path -> $real"
+    echo "$real"
+}
+
+# H4
+safe_meta_filename() {
+    printf '%s' "$1" | tr ' /' '__' | sed 's/[^A-Za-z0-9._-]//g'
+}
+
+escape_quotes() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
 # =====================================================================
@@ -39,32 +63,23 @@ exchange_dir() {
 # =====================================================================
 
 write_metadata() {
-    jail="$1"
-    app="$2"
-    version="$3"
-    method="$4"
-    install_path="$5"
-    launcher_cmd="$6"
-    icon="${7:-parish-container-app}"
-
+    jail="$1" app="$2" version="$3" method="$4" install_path="$5" launcher_cmd="$6" icon="${7:-parish-container-app}"
+    validate_jail_name "$jail"
     meta_dir="$JAILS_DIR/app/$jail/usr/local/etc/parishbsd/custom-apps"
     mkdir -p "$meta_dir"
-
-    safe="$(printf '%s' "$app" | tr ' /' '__' | sed 's/[^A-Za-z0-9._-]//g')"
+    safe="$(safe_meta_filename "$app")"
     meta_file="$meta_dir/$safe.conf"
-
-    cat > "$meta_file" <<EOF
-# Custom application metadata
-NAME="$app"
-VERSION="$version"
-INSTALL_METHOD="$method"
-INSTALL_PATH="$install_path"
-LAUNCHER_COMMAND="$launcher_cmd"
-ICON_NAME="$icon"
-INSTALL_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-EOF
-    chmod 0644 "$meta_file"
-    printf '%s' "$safe"
+    tmp="${meta_file}.tmp.$$"
+    {
+        printf 'NAME="%s"\n'       "$(escape_quotes "$app")"
+        printf 'VERSION="%s"\n'    "$(escape_quotes "$version")"
+        printf 'INSTALL_METHOD="%s"\n' "$(escape_quotes "$method")"
+        printf 'INSTALL_PATH="%s"\n'   "$(escape_quotes "$install_path")"
+        printf 'LAUNCHER_COMMAND="%s"\n' "$(escape_quotes "$launcher_cmd")"
+        printf 'ICON_NAME="%s"\n'  "$(escape_quotes "$icon")"
+    } > "$tmp"
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$meta_file"
 }
 
 read_metadata_field() {
@@ -112,11 +127,7 @@ cmd_install() {
     jail="${1:?usage: parish-apps install <jail> <package>}"
     package="${2:?usage: parish-apps install <jail> <package>}"
     require_jail "$jail"
-
-    case "$package" in
-        *[!A-Za-z0-9._+-]*) err "invalid package name: $package" ;;
-    esac
-
+    validate_package_name "$package"
     log "Installing $package in $jail"
     pkg -j "$jail" install -y "$package"
 }
@@ -130,6 +141,11 @@ cmd_install_file() {
     shift
     host_file="${1:?usage: parish-apps install-file <jail> <file> [flags]}"
     shift || true
+    require_jail "$jail"
+    # H3: file must be canonical and not a symlink
+    [ -f "$host_file" ] || err "not a regular file: $host_file"
+    [ ! -L "$host_file" ] || err "file is a symlink: $host_file"
+    canonical_path "$host_file" >/dev/null
 
     mode="auto"
     launcher="none"
