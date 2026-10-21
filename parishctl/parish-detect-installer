@@ -9,9 +9,26 @@
 set -eu
 
 file="$1"
-[ -f "$file" ] || { echo "unknown:file-not-found"; exit 0; }
+[ -n "$file" ] || { echo "unknown:no-file"; exit 0; }
 
-mime="$(file --mime-type -b "$file" 2>/dev/null || echo 'application/octet-stream')"
+[ -f "$file" ] || { echo "unknown:file-not-found"; exit 0; }
+[ ! -L "$file" ] || { echo "unknown:symlink-refused"; exit 0; }
+real=$(realpath "$file" 2>/dev/null) || { echo "unknown:cannot-resolve"; exit 0; }
+[ "$real" = "$file" ] || { echo "unknown:not-canonical"; exit 0; }
+
+size=$(stat -f%z "$file" 2>/dev/null || echo 0)
+[ "$size" -le 104857600 ] || { echo "unknown:file-too-large"; exit 0; }
+
+# use timeout where available (FreeBSD: timeout(1) in base)
+run_with_timeout() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 10 "$@"
+    else
+        "$@"
+    fi
+}
+
+mime="$(run_with_timeout file --mime-type -b "$file" 2>/dev/null || echo 'application/octet-stream')"
 ext="$(printf '%s' "$(basename "$file")" | tr 'A-Z' 'a-z' | awk -F. '{print $NF}')"
 
 # =====================================================================
@@ -21,8 +38,8 @@ ext="$(printf '%s' "$(basename "$file")" | tr 'A-Z' 'a-z' | awk -F. '{print $NF}
 case "$mime" in
     application/x-dosexec|application/x-msdownload)
         # A PE executable. Could be installer or portable. Inspect
-        # strings to decide.
-        if strings -a "$file" 2>/dev/null | grep -qiE \
+        # run_with_timeout strings to decide.
+        if run_with_timeout strings -a "$file" 2>/dev/null | grep -qiE \
             'Nullsoft|Inno Setup|InstallShield|WiX Toolset|MSI Installer'; then
             echo "windows-installer:$ext"
         else
@@ -41,7 +58,7 @@ case "$mime" in
         # Native ELF binary. If we get here for a downloaded file,
         # it's almost certainly a Linux binary (FreeBSD uses a
         # different ELF ABI).
-        if file "$file" | grep -q 'FreeBSD'; then
+        if run_with_timeout file "$file" | grep -q 'FreeBSD'; then
             echo "freebsd-elf:standalone"
         else
             echo "linux-run-ambiguous:elf"
@@ -62,17 +79,17 @@ case "$mime" in
     application/zip)
         # A zip. Could be portable Windows program, portable Linux
         # program, source, or something else. Inspect contents.
-        listing="$(unzip -l "$file" 2>/dev/null || true)"
+        listing="$(run_with_timeout unzip -l "$file" 2>/dev/null || true)"
         ;;
 
     application/x-tar)
-        listing="$(tar -tf "$file" 2>/dev/null || true)"
+        listing="$(run_with_timeout tar -tf "$file" 2>/dev/null || true)"
         ;;
 
     application/gzip|application/x-gzip)
         # Could be tar.gz or gz of a single file.
-        if tar -tzf "$file" >/dev/null 2>&1; then
-            listing="$(tar -tzf "$file" 2>/dev/null || true)"
+        if run_with_timeout tar -tzf "$file" >/dev/null 2>&1; then
+            listing="$(run_with_timeout tar -tzf "$file" 2>/dev/null || true)"
         else
             echo "archive-portable:gz-single"
             exit 0
@@ -80,8 +97,8 @@ case "$mime" in
         ;;
 
     application/x-xz)
-        if tar -tJf "$file" >/dev/null 2>&1; then
-            listing="$(tar -tJf "$file" 2>/dev/null || true)"
+        if run_with_timeout tar -tJf "$file" >/dev/null 2>&1; then
+            listing="$(run_with_timeout tar -tJf "$file" 2>/dev/null || true)"
         else
             echo "archive-portable:xz-single"
             exit 0
@@ -89,8 +106,8 @@ case "$mime" in
         ;;
 
     application/x-bzip2)
-        if tar -tjf "$file" >/dev/null 2>&1; then
-            listing="$(tar -tjf "$file" 2>/dev/null || true)"
+        if run_with_timeout tar -tjf "$file" >/dev/null 2>&1; then
+            listing="$(run_with_timeout tar -tjf "$file" 2>/dev/null || true)"
         else
             echo "archive-portable:bz2-single"
             exit 0
