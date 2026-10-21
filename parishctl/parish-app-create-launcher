@@ -15,59 +15,92 @@ jail="${1:?usage: parish-app-create-launcher <jail> <name> [menu|desktop|both]}"
 name="${2:?usage: parish-app-create-launcher <jail> <name> [where]}"
 where="${3:-menu}"
 
+# H1: strict validation
+validate_name() {
+    [ -n "$1" ] || { echo "ERROR: empty name" >&2; exit 1; }
+    printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' \
+        || { echo "ERROR: invalid name: '$1'" >&2; exit 1; }
+}
+validate_name "$jail"
+validate_name "$name"
+
 apps_dir="$HOME/.local/share/applications"
 desk_dir="$HOME/Desktop"
 mkdir -p "$apps_dir" "$desk_dir"
 
 safe_name="$(printf '%s' "$name" | sed 's/[^A-Za-z0-9._-]/_/g')"
 
+# H2: escape for .desktop values
+escape_desktop() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 create_one() {
-    display="$1"; command="$2"; icon="$3"; slug="$4"
+    display="$1"
+    command="$2"
+    icon="$3"
+    slug="$4"
+
+    # H2: escape Name and Exec
+    esc_display="$(escape_desktop "$display")"
+    esc_command="$(escape_desktop "$command")"
+    esc_icon="$(escape_desktop "$icon")"
+
     entry="[Desktop Entry]
 Type=Application
-Name=$display
+Name=$esc_display
 Comment=ParishBSD application in compartment '$jail'
-Exec=/usr/local/parishbsd/parishctl/parish-jail-run $jail $command
-Icon=$icon
+Exec=/usr/local/parishbsd/parishctl/parish-jail-run $jail $esc_command
+Icon=$esc_icon
 Terminal=false
 Categories=Application;
 StartupNotify=true"
 
     if [ "$where" = "menu" ] || [ "$where" = "both" ]; then
         target="$apps_dir/parish-$jail-$slug.desktop"
-        printf '%s\n' "$entry" > "$target"
-        chmod 0755 "$target"
+        tmp="${target}.tmp.$$"
+        printf '%s\n' "$entry" > "$tmp"
+        chmod 0755 "$tmp"
+        mv -f "$tmp" "$target"
         printf 'Created: %s\n' "$target"
     fi
     if [ "$where" = "desktop" ] || [ "$where" = "both" ]; then
         target="$desk_dir/parish-$jail-$slug.desktop"
-        printf '%s\n' "$entry" > "$target"
-        chmod 0755 "$target"
+        tmp="${target}.tmp.$$"
+        printf '%s\n' "$entry" > "$tmp"
+        chmod 0755 "$tmp"
+        mv -f "$tmp" "$target"
         printf 'Created: %s\n' "$target"
     fi
 }
 
-# Case 1: custom app  metadata exists.
+# Case 1: custom app metadata exists.
 meta_dir="/usr/local/jails/app/$jail/usr/local/etc/parishbsd/custom-apps"
 meta_file=""
-for f in "$meta_dir"/*.conf; do
-    [ -f "$f" ] || continue
-    n="$(awk -F'"' '/^NAME=/{print $2; exit}' "$f")"
-    if [ "$n" = "$name" ]; then meta_file="$f"; break; fi
-done
+if [ -d "$meta_dir" ]; then
+    for f in "$meta_dir"/*.conf; do
+        [ -f "$f" ] || continue
+        [ ! -L "$f" ] || continue   # H3: reject symlinks
+        n="$(awk -F'"' '/^NAME=/{print $2; exit}' "$f")"
+        if [ "$n" = "$name" ]; then
+            meta_file="$f"
+            break
+        fi
+    done
+fi
 
 if [ -n "$meta_file" ]; then
-    # shellcheck disable=SC1090
-    . "$meta_file"
-    create_one "${NAME:-$name}" \
-               "${LAUNCHER_COMMAND:?}" \
-               "${ICON_NAME:-parish-container-app}" \
-               "$safe_name"
+    # Parse metadata safely instead of sourcing it
+    NAME="$(awk -F'"' '/^NAME=/{print $2; exit}' "$meta_file")"
+    LAUNCHER_COMMAND="$(awk -F'"' '/^LAUNCHER_COMMAND=/{print $2; exit}' "$meta_file")"
+    ICON_NAME="$(awk -F'"' '/^ICON_NAME=/{print $2; exit}' "$meta_file")"
+    [ -n "$LAUNCHER_COMMAND" ] || { echo "ERROR: LAUNCHER_COMMAND missing in $meta_file" >&2; exit 1; }
+    create_one "${NAME:-$name}" "$LAUNCHER_COMMAND" "${ICON_NAME:-parish-container-app}" "$safe_name"
     update-desktop-database "$apps_dir" 2>/dev/null || true
     exit 0
 fi
 
-# Case 2: native package  discover .desktop files.
+# Case 2: native package  discover .desktop files inside the jail.
 found=0
 for d in $(jexec "$jail" sh -c "
     for f in /usr/local/share/applications/*.desktop; do
@@ -81,19 +114,8 @@ for d in $(jexec "$jail" sh -c "
     display="$(jexec "$jail" sh -c "grep '^Name=' '$d' | head -1 | cut -d= -f2-")"
     command="$(jexec "$jail" sh -c "grep '^Exec=' '$d' | head -1 | cut -d= -f2-")"
     icon="$(jexec "$jail" sh -c "grep '^Icon=' '$d' | head -1 | cut -d= -f2-")"
-    [ -n "$display" ] || display="$name"
-    [ -n "$command" ] || command="$name"
-    [ -n "$icon" ]    || icon="application-x-executable"
-
-    slug="$(basename "$d" .desktop | sed 's/[^A-Za-z0-9._-]/_/g')"
-    create_one "$display" "$command" "$icon" "$safe_name-$slug"
-    found=$((found + 1))
+    create_one "$display" "$command" "$icon" "$safe_name"
+    found=1
 done
 
-[ "$found" -gt 0 ] || {
-    echo "No .desktop files found for package '$name' in '$jail'" >&2
-    exit 1
-}
-
-update-desktop-database "$apps_dir" 2>/dev/null || true
-echo "Created $found launcher(s) for '$name'"
+[ "$found" -eq 1 ] || { echo "ERROR: no launcher source found for '$name' in '$jail'" >&2; exit 1; }
