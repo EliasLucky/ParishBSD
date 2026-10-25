@@ -4,9 +4,17 @@ strings:
   shortProductName: ParishBSD
   version: 1.0.5
   shortVersion: 1.0.5
-  vendor: ParishBSD Project
-  shortVendor: ParishBSD
-  welcomeStyleCalamares: true
+  versionedName: ParishBSD 1.0.5
+  shortVersionedName: ParishBSD 1.0.5
+  bootloaderEntryName: ParishBSD
+  productUrl: https://codeberg.org/EliasLucky/parishbsd
+  supportUrl: https://codeberg.org/EliasLucky/parishbsd/issues
+  releaseNotesUrl: ""
 images:
   productLogo: logo.png
   productIcon: logo.png
+  productWelcome: logo.png
+style:
+  sidebarBackground: "#1b3b5f"
+  sidebarText: "#ffffff"
+  sidebarTextSelect: "#f7c948"
