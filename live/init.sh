@@ -9,11 +9,9 @@ export PATH
 msg() { echo "[parishbsd-init] $*"; }
 die() { msg "FATAL: $*"; exec /bin/sh; }
 
-# Load the modules the loader may not have loaded.
 kldload geom_uzip 2>/dev/null || true
 kldload tmpfs     2>/dev/null || true
 
-# The ISO is mounted at /cdrom by the loader’s md root; find the uzip.
 UZIP=""
 for _candidate in /cdrom/uzip/root.uzip /uzip/root.uzip; do
     [ -f "$_candidate" ] && UZIP="$_candidate" && break
@@ -21,23 +19,28 @@ done
 [ -n "$UZIP" ] || die "root.uzip not found"
 
 MD=$(mdconfig -a -t vnode -f "$UZIP") || die "mdconfig failed"
-mount -t cd9660 -o ro "/dev/$MD" / || die "mount uzip root failed"
+
+# Two read-only mounts of the same image:
+#   /       — with tmpfs overlays below, this is the running system
+#   /ro-root— clean source for the installer's unpackfs
+mkdir -p /ro-root
+mount -t cd9660 -o ro "/dev/$MD" /ro-root || die "mount /ro-root failed"
+mount -t cd9660 -o ro "/dev/$MD" /        || die "mount / failed"
 
 # Writable overlays.
 mount -t tmpfs tmpfs /tmp  || die "tmpfs /tmp failed"
 mount -t tmpfs tmpfs /var  || die "tmpfs /var failed"
 mount -t tmpfs tmpfs /root || die "tmpfs /root failed"
 
-# /etc must be writable for live configuration; copy from the ro root.
 mkdir -p /etc.live
 cp -R /etc/. /etc.live/ 2>/dev/null || true
 mount -t tmpfs tmpfs /etc || die "tmpfs /etc failed"
 cp -R /etc.live/. /etc/ 2>/dev/null || true
 
-# Installer trigger.
-if [ -f /etc/installer ]; then
-    msg "starting installer"
-    exec /usr/sbin/bsdinstall
+# Live user for XFCE autologin.
+if ! pw usershow live >/dev/null 2>&1; then
+    pw useradd live -u 1000 -c "Live User" -d /home/live -s /bin/sh -m
+    echo "live:live" | pw usermod live -h 0 2>/dev/null || true
 fi
 
 msg "starting live environment"
