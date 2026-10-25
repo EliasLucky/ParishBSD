@@ -1,1 +1,20 @@
-1
+#!/bin/sh
+# livecd-rc  minimal rc for the live environment.
+set -eu
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+export PATH
+
+# Start devd so USB devices appear.
+/usr/sbin/devd -q
+
+# Network: DHCP on the first interface.
+IF=$(ifconfig -l | awk '{print $1}')
+[ -n "$IF" ] && dhclient "$IF" >/dev/null 2>&1 || true
+
+# Start the graphical desktop if lightdm exists.
+if [ -x /usr/local/bin/lightdm ]; then
+    exec /usr/local/bin/lightdm
+fi
+
+# Otherwise drop to a console.
+exec /usr/bin/login -f root
