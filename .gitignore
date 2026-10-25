@@ -1,1 +1,9 @@
-#
+build/
+out/
+*.iso
+*.img
+*.uzip
+*.sha256
+*.sha512
+*.asc
+work/
