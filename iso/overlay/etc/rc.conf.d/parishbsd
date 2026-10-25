@@ -1,1 +1,2 @@
-#
+# Placeholder for ParishBSD-specific rc.conf overrides.
+# Kept separate so `pkg upgrade` of parishbsd-base does not clobber it.
