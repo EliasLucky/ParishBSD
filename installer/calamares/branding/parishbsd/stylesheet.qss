@@ -1,1 +1,7 @@
-#
+#sidebarAppNameLabel {
+    font-size: 20px;
+    font-weight: bold;
+}
+#mainApp {
+    background: #f7f7f7;
+}
