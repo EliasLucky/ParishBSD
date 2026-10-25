@@ -12,3 +12,4 @@ lightdm
 lightdm-gtk-greeter
 dbus
 polkit
+sudo
