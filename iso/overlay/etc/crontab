@@ -1,1 +1,5 @@
-/
+SHELL=/bin/sh
+PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin
+
+# ParishBSD vault idle check.
+*/5 * * * * root /usr/local/parishbsd/scripts/vault-idle-check.sh >/dev/null 2>&1
