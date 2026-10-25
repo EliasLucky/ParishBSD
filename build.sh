@@ -53,6 +53,20 @@ require_cmd zpool zfs mdconfig makefs mkuzip sha256 gpg
 
 mkdir -p "$BUILD_DIR" "$OUT" "$STAGE" "$CACHE"
 
+# ---- resolve parishbsd-ports ----------------------------------------------
+if [ -z "$PARISHBSD_PKG_REPO" ]; then
+    if [ -z "$PARISHBSD_PORTS_DIR" ] || [ ! -d "$PARISHBSD_PORTS_DIR" ]; then
+        PARISHBSD_PORTS_DIR="$BUILD_DIR/parishbsd-ports"
+        if [ ! -d "$PARISHBSD_PORTS_DIR/.git" ]; then
+            log "cloning $PARISHBSD_PORTS_REPO → $PARISHBSD_PORTS_DIR"
+            require_cmd git
+            git clone --depth=1 -b "$PARISHBSD_PORTS_BRANCH" \
+                "$PARISHBSD_PORTS_REPO" "$PARISHBSD_PORTS_DIR" || \
+                die "failed to clone $PARISHBSD_PORTS_REPO"
+        fi
+    fi
+fi
+export PARISHBSD_PORTS_DIR
 # ---- clean -----------------------------------------------------------------
 if [ "$CLEAN" -eq 1 ]; then
     if zpool list "$POOL_NAME" >/dev/null 2>&1; then
