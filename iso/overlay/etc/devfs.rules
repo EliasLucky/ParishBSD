@@ -1,1 +1,3 @@
-#
+[parishbsd=10]
+add path 'bpf*' mode 0660 group wheel
+add path 'usb/*' mode 0660 group wheel
