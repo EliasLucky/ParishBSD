@@ -4,17 +4,44 @@ set -eu
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 export PATH
 
-# Start devd so USB devices appear.
 /usr/sbin/devd -q
 
-# Network: DHCP on the first interface.
 IF=$(ifconfig -l | awk '{print $1}')
 [ -n "$IF" ] && dhclient "$IF" >/dev/null 2>&1 || true
 
-# Start the graphical desktop if lightdm exists.
+# Live user is in wheel with NOPASSWD sudo.
+mkdir -p /usr/local/etc/sudoers.d
+cat > /usr/local/etc/sudoers.d/live <<'EOF'
+live ALL=(ALL) NOPASSWD: ALL
+EOF
+chmod 0440 /usr/local/etc/sudoers.d/live
+chown root:wheel /usr/local/etc/sudoers.d/live
+
+# LightDM autologin config.
+mkdir -p /usr/local/etc/lightdm
+cat > /usr/local/etc/lightdm/lightdm.conf <<'EOF'
+[Seat:*]
+autologin-user=live
+autologin-user-timeout=0
+user-session=xfce
+greeter-session=lightdm-gtk-greeter
+EOF
+
 if [ -x /usr/local/bin/lightdm ]; then
-    exec /usr/local/bin/lightdm
+    msg="starting graphical environment"
+    echo "[parishbsd-init] $msg"
+    if /usr/local/bin/lightdm; then
+        exit 0
+    fi
+    echo "[parishbsd-init] lightdm failed; falling back to console"
 fi
 
-# Otherwise drop to a console.
+# Fallback: console with bsdinstall available.
+cat <<'EOF'
+
+  ParishBSD live console.
+  Type 'bsdinstall' to install to disk.
+  Type 'reboot' to reboot.
+
+EOF
 exec /usr/bin/login -f root
