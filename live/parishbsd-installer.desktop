@@ -1,1 +1,9 @@
-#
+[Desktop Entry]
+Type=Application
+Name=Install ParishBSD
+Comment=Install ParishBSD to this computer
+Exec=sh -c 'test -f /tmp/.parishbsd-installer-shown || { touch /tmp/.parishbsd-installer-shown; exec sudo calamares; }'
+Icon=parishbsd-installer
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true
