@@ -1,1 +1,5 @@
-[
+---
+type: "job"
+name: "parishbsd"
+interface: "python"
+script: "main.py"
