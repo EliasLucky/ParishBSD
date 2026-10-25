@@ -1,1 +1,7 @@
-/
+-- ParishBSD boot menu (Lua loader).
+local menu = loader.menu
+menu:addMenu("ParishBSD", {
+    { "Boot ParishBSD (live)", "boot" },
+    { "Install ParishBSD", "set installer=1; boot" },
+    { "Boot Single User", "set boot_single=1; boot" },
+})
