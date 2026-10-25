@@ -1,1 +1,8 @@
-#
+[Desktop Entry]
+Type=Application
+Name=Install ParishBSD (text mode)
+Comment=Fallback installer (bsdinstall)
+Exec=xfce4-terminal --title="Install ParishBSD" --command="sudo bsdinstall"
+Icon=parishbsd-installer
+Terminal=false
+Categories=System;
