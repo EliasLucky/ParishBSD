@@ -57,12 +57,34 @@ mkdir -p "$BUILD_DIR" "$OUT" "$STAGE" "$CACHE"
 if [ -z "$PARISHBSD_PKG_REPO" ]; then
     if [ -z "$PARISHBSD_PORTS_DIR" ] || [ ! -d "$PARISHBSD_PORTS_DIR" ]; then
         PARISHBSD_PORTS_DIR="$BUILD_DIR/parishbsd-ports"
+
         if [ ! -d "$PARISHBSD_PORTS_DIR/.git" ]; then
             log "cloning $PARISHBSD_PORTS_REPO → $PARISHBSD_PORTS_DIR"
             require_cmd git
-            git clone --depth=1 -b "$PARISHBSD_PORTS_BRANCH" \
-                "$PARISHBSD_PORTS_REPO" "$PARISHBSD_PORTS_DIR" || \
-                die "failed to clone $PARISHBSD_PORTS_REPO"
+
+            # Codeberg's HTTP/2 front end resets large transfers. HTTP/1.1,
+            # a shallow single-branch clone, and a larger post buffer are the
+            # documented workaround.
+            _clone_ok=0
+            if git -c http.version=HTTP/1.1 \
+                   -c http.postBuffer=524288000 \
+                   clone --depth=1 --single-branch \
+                   --branch "$PARISHBSD_PORTS_BRANCH" \
+                   "$PARISHBSD_PORTS_REPO" "$PARISHBSD_PORTS_DIR"; then
+                _clone_ok=1
+            else
+                warn "clone failed; removing partial checkout and retrying with blob filter"
+                rm -rf "$PARISHBSD_PORTS_DIR"
+                if git -c http.version=HTTP/1.1 \
+                       -c http.postBuffer=524288000 \
+                       clone --depth=1 --single-branch --filter=blob:none \
+                       --branch "$PARISHBSD_PORTS_BRANCH" \
+                       "$PARISHBSD_PORTS_REPO" "$PARISHBSD_PORTS_DIR"; then
+                    _clone_ok=1
+                fi
+            fi
+
+            [ "$_clone_ok" -eq 1 ] || die "failed to clone $PARISHBSD_PORTS_REPO (see warnings above)"
         fi
     fi
 fi
