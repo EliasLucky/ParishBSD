@@ -1,1 +1,12 @@
-#
+componentName: parishbsd
+strings:
+  productName: ParishBSD
+  shortProductName: ParishBSD
+  version: 1.0.5
+  shortVersion: 1.0.5
+  vendor: ParishBSD Project
+  shortVendor: ParishBSD
+  welcomeStyleCalamares: true
+images:
+  productLogo: logo.png
+  productIcon: logo.png
