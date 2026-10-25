@@ -1,1 +1,38 @@
-#
+#!/bin/sh
+# installerconfig  non-interactive defaults for bsdinstall.
+# Sourced by bsdinstall(8) inside the installer environment.
+
+# ---- partitioning ---------------------------------------------------------
+# ZFS on the whole disk, with the ParishBSD dataset layout.
+export ZFSBOOT_DATASETS="
+zroot/ROOT/default
+zroot/tmp
+zroot/usr/home
+zroot/usr/ports
+zroot/usr/src
+zroot/var/audit
+zroot/var/crash
+zroot/var/log
+zroot/var/mail
+zroot/var/tmp
+zroot/jails
+zroot/jails/app
+zroot/jails/vault
+zroot/jails/containers
+"
+export ZFSBOOT_SWAP_SIZE="2g"
+
+# ---- accounts -------------------------------------------------------------
+# The volunteer is created by the installer; _parish is created by the
+# guardian package’s pkg-install script.
+export DISTRIBUTIONS="kernel.txz base.txz"
+export BSDINSTALL_DISTSITE=""
+
+# ---- network --------------------------------------------------------------
+# DHCP by default; the installer’s network screen still runs if the user
+# wants to change it.
+export NETCONFIG_DHCP="YES"
+
+# ---- post-install ---------------------------------------------------------
+# This runs inside the new system’s chroot after extraction.
+export BSDINSTALL_CHROOT_POSTINSTALL="/usr/local/etc/scripts/parishbsd-postinstall.sh"
