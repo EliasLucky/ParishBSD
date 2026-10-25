@@ -15,6 +15,11 @@ fi
 atomic_install "$REPO/iso/overlay/boot/loader.conf" \
     "$ROOT/boot/loader.conf" 0644
 
+if grep -q '^splash=' "$ROOT/boot/loader.conf" 2>/dev/null; then
+    _splash=$(grep '^splash=' "$ROOT/boot/loader.conf" | sed 's/.*="\?\([^"]*\)"\?/\1/')
+    [ -f "$ROOT$_splash" ] || \
+        die "splash configured in loader.conf but $ROOT$_splash is missing"
+fi
 # Boot menu (beastie menu).
 if [ -f "$REPO/iso/overlay/boot/menu.rc" ]; then
     mkdir -p "$ROOT/boot/lua"
