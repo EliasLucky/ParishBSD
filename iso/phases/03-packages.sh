@@ -8,6 +8,25 @@ require_cmd openssl
 
 _abi="FreeBSD:$(echo "$FREEBSD_VERSION" | sed 's/-RELEASE//'):amd64"
 
+# ---- DNS + repo config for the chroot -----------------------------------
+mkdir -p "$ROOT/etc"
+cp /etc/resolv.conf "$ROOT/etc/resolv.conf" || \
+    die "cannot copy /etc/resolv.conf into chroot; DNS will fail"
+
+# Ensure the default FreeBSD repo config exists inside the chroot.
+mkdir -p "$ROOT/etc/pkg"
+if [ ! -f "$ROOT/etc/pkg/FreeBSD.conf" ]; then
+    cat > "$ROOT/etc/pkg/FreeBSD.conf" <<EOF
+FreeBSD: {
+  url: "pkg+https://pkg.FreeBSD.org/\${ABI}/quarterly",
+  mirror_type: "srv",
+  signature_type: "fingerprints",
+  fingerprints: "/usr/share/keys/pkg",
+  enabled: yes
+}
+EOF
+fi
+
 # ---- bootstrap pkg in the target ----------------------------------------
 if [ ! -x "$ROOT/usr/local/sbin/pkg-static" ]; then
     log "bootstrapping pkg in $ROOT"
