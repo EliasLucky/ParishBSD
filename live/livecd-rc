@@ -1,5 +1,5 @@
 #!/bin/sh
-# livecd-rc  minimal rc for the live environment.
+# livecd-rc — minimal rc for the live environment.
 set -eu
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 export PATH
