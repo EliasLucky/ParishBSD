@@ -27,6 +27,37 @@ FreeBSD: {
 EOF
 fi
 
+# Disable the kmods repository. The build chroot does not install kernel
+# modules, and the kmods_quarterly_${VERSION_MINOR} repo does not exist
+# for every minor release. Leaving it enabled causes pkg bootstrap to
+# fail with "Not found" after the ports repo succeeds.
+cat > "$ROOT/etc/pkg/FreeBSD-kmods.conf" <<EOF
+FreeBSD-kmods: {
+  url: "pkg+https://pkg.FreeBSD.org/\${ABI}/kmods_quarterly_\${VERSION_MINOR}",
+  mirror_type: "srv",
+  signature_type: "fingerprints",
+  fingerprints: "/usr/share/keys/pkg",
+  enabled: no
+}
+EOF
+
+# ---- mount devfs so pkg can open /dev/null ------------------------------
+# pkg(8) requires /dev/null. A freshly extracted base.txz has an empty
+# /dev, so mount the host's devfs for the duration of the bootstrap and
+# package installation. Unmount before the phase exits so the device
+# tree does not leak into the final image.
+mkdir -p "$ROOT/dev"
+if ! mount | grep -q "on $ROOT/dev "; then
+    mount -t devfs devfs "$ROOT/dev" || \
+        die "cannot mount devfs on $ROOT/dev; is the host's devfs available?"
+    _devfs_mounted=1
+else
+    _devfs_mounted=0
+fi
+
+# Ensure the mount is cleaned up no matter how the phase exits.
+trap 'if [ "${_devfs_mounted:-0}" -eq 1 ]; then umount "$ROOT/dev" 2>/dev/null || true; fi' EXIT INT TERM
+
 # ---- bootstrap pkg in the target ----------------------------------------
 if [ ! -x "$ROOT/usr/local/sbin/pkg-static" ]; then
     log "bootstrapping pkg in $ROOT"
