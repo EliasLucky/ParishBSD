@@ -4,7 +4,7 @@ set -eu
 . "$REPO/scripts/lib.sh"
 
 require_root
-require_cmd zpool zfs mdconfig makefs mkuzip sha256 fetch
+require_cmd zpool zfs mdconfig makefs mkuzip sha256 fetch python3
 
 # Host FreeBSD major must match the base we are fetching.
 _host_major=$(freebsd-version -u | cut -d. -f1)
