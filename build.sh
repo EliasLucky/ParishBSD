@@ -23,19 +23,20 @@ ONLY=0
 SIGN=0
 CLEAN=0
 CLEAN_ALL=0
-for _arg in "$@"; do
-    case "$_arg" in
-        --from)     shift; FROM=$1 ;;
-        --from=*)   FROM=${_arg#*=} ;;
-        --only)     shift; ONLY=$1 ;;
-        --only=*)   ONLY=${_arg#*=} ;;
-        --sign)     SIGN=1 ;;
-        --clean)    CLEAN=1 ;;
-        --clean-all) CLEAN=1; CLEAN_ALL=1 ;;
-        -h|--help)
-            sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
-            exit 0 ;;
-        *) die "unknown argument: $_arg" ;;
+# early die() before sourcing lib.sh
+die() { printf 'build.sh: %s\n' "$*" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --from)       FROM=$2;  shift 2 ;;
+        --from=*)     FROM=${1#*=}; shift ;;
+        --only)       ONLY=$2;  shift 2 ;;
+        --only=*)     ONLY=${1#*=}; shift ;;
+        --sign)       SIGN=1; shift ;;
+        --clean)      CLEAN=1; shift ;;
+        --clean-all)  CLEAN=1; CLEAN_ALL=1; shift ;;
+        -h|--help)    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) die "unknown argument: $1" ;;
     esac
 done
 
@@ -103,8 +104,7 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 # ---- phase runner ----------------------------------------------------------
-PHASES=00-preflight 01-workspace 02-base 03-packages 04-config \
-        05-boot 06-compress 07-ramdisk 08-image 09-sign
+PHASES="00-preflight 01-workspace 02-base 03-packages 04-config 05-boot 06-compress 07-ramdisk 08-image 09-sign"
 
 run_phase() {
     _num=${1%%-*}
