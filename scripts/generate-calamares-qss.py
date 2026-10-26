@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-generate-calamares-qss.py — build a Calamares QSS from a GTK theme's
+generate-calamares-qss.py  build a Calamares QSS from a GTK theme's
 palette. Reads the theme's gtk.css (and any files it @imports), extracts
 @define-color values (resolving references and shade/mix/alpha), then
 substitutes them into a QSS template.
@@ -189,7 +189,7 @@ PLACEHOLDER_RE = re.compile(r'@@([\w_]+)@@')
 # Defaults from Aerobird's colors.css + colors-themed.css.
 # Used when the theme does not define a name we reference.
 DEFAULTS = {
-    # widgets/colors.css — semantic GTK palette
+    # widgets/colors.css  semantic GTK palette
     'theme_bg_color':            '#e8ecf6',
     'theme_fg_color':            '#000000',
     'theme_base_color':          '#ffffff',
@@ -206,7 +206,7 @@ DEFAULTS = {
     'error_color':               '#cc0000',
     'success_color':             '#33d17a',
 
-    # widgets/colors-themed.css — Aero palette
+    # widgets/colors-themed.css  Aero palette
     'aero_base':                 '#396cb6',
     'aero_dark':                 '#3b64a0',
     'aero_light':                '#9cb5da',
