@@ -72,6 +72,6 @@ fetch() {
         return 0
     fi
     log "fetch: $_url"
-    fetch -q -o "${_out}.tmp" "$_url" || die "fetch failed: $_url"
+    /usr/bin/fetch -q -o "${_out}.tmp" "$_url" || die "fetch failed: $_url"
     mv -f "${_out}.tmp" "$_out"
 }
