@@ -6,10 +6,12 @@ export PATH
 
 /usr/sbin/devd -q
 
+# ---- network --------------------------------------------------------------
 IF=$(ifconfig -l | awk '{print $1}')
 [ -n "$IF" ] && dhclient "$IF" >/dev/null 2>&1 || true
 
-# Live user is in wheel with NOPASSWD sudo.
+# ---- live user ------------------------------------------------------------
+# Already created by /init, but sudoers for the live user must be present.
 mkdir -p /usr/local/etc/sudoers.d
 cat > /usr/local/etc/sudoers.d/live <<'EOF'
 live ALL=(ALL) NOPASSWD: ALL
@@ -17,7 +19,16 @@ EOF
 chmod 0440 /usr/local/etc/sudoers.d/live
 chown root:wheel /usr/local/etc/sudoers.d/live
 
-# LightDM autologin config.
+# ---- apply the artwork theme and wallpaper to the live session -----------
+# This runs BEFORE lightdm so the greeter and the XFCE session pick up
+# /etc/xdg/... defaults on their first read. If it fails, XFCE still
+# starts with its own defaults — a visible but non-fatal degradation.
+if [ -x /usr/local/bin/parishbsd-theme-detect ]; then
+    /usr/local/bin/parishbsd-theme-detect --root / || \
+        echo "[parishbsd-init] theme detection failed; using XFCE defaults"
+fi
+
+# ---- lightdm autologin ----------------------------------------------------
 mkdir -p /usr/local/etc/lightdm
 cat > /usr/local/etc/lightdm/lightdm.conf <<'EOF'
 [Seat:*]
@@ -28,19 +39,18 @@ greeter-session=lightdm-gtk-greeter
 EOF
 
 if [ -x /usr/local/bin/lightdm ]; then
-    msg="starting graphical environment"
-    echo "[parishbsd-init] $msg"
+    echo "[parishbsd-init] starting graphical environment"
     if /usr/local/bin/lightdm; then
         exit 0
     fi
     echo "[parishbsd-init] lightdm failed; falling back to console"
 fi
 
-# Fallback: console with bsdinstall available.
+# ---- console fallback -----------------------------------------------------
 cat <<'EOF'
 
   ParishBSD live console.
-  Type 'bsdinstall' to install to disk.
+  Type 'bsdinstall' to install to disk (text mode).
   Type 'reboot' to reboot.
 
 EOF
